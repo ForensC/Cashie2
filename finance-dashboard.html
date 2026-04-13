@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>個人財務儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--bg2:#f8fafc;--bg3:#f1f5f9;
+  --text:#0f172a;--text2:#64748b;--text3:#94a3b8;
+  --border:rgba(15,23,42,.09);--border2:rgba(15,23,42,.18);
+  --blue-bg:#eff6ff;--blue-text:#1d4ed8;--blue-border:#bfdbfe;
+  --green:#15803d;--red:#b91c1c;--amber:#b45309;
+  --r:8px;--rl:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#0f172a;--bg2:#1e293b;--bg3:#0f172a;
+    --text:#f1f5f9;--text2:#94a3b8;--text3:#475569;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.16);
+    --blue-bg:#1e3a5f;--blue-text:#93c5fd;--blue-border:#1e40af;
+    --green:#4ade80;--red:#f87171;--amber:#fbbf24;
+  }
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);min-height:100vh}
+
+/* Header */
+#hd{background:var(--bg);border-bottom:.5px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+#hd-l{display:flex;align-items:center;gap:10px}
+#hd-l h1{font-size:15px;font-weight:600;letter-spacing:-.02em}
+#hd-l span{font-size:12px;color:var(--text2)}
+#hd-r{display:flex;align-items:center;gap:8px}
+#sync-btn{padding:6px 14px;border-radius:var(--r);border:.5px solid var(--border2);background:transparent;cursor:pointer;font-size:12px;color:var(--text2);font-family:inherit;display:flex;align-items:center;gap:5px;transition:all .15s}
+#sync-btn:hover{background:var(--bg2);color:var(--text)}
+#sync-btn.loading{opacity:.6;pointer-events:none}
+#sync-time{font-size:11px;color:var(--text3)}
+
+/* Layout */
+#wrap{max-width:960px;margin:0 auto;padding:20px 16px}
+
+/* Status bar */
+#status{background:var(--blue-bg);border:.5px solid var(--blue-border);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--blue-text);display:none;align-items:center;gap:8px}
+#status.err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+@media(prefers-color-scheme:dark){#status.err{background:#3f1212;border-color:#7f1d1d;color:#fca5a5}}
+
+/* Tabs */
+.tabs{display:flex;gap:3px;margin-bottom:18px;flex-wrap:wrap}
+.tab{padding:7px 18px;border-radius:var(--r);border:.5px solid transparent;background:transparent;cursor:pointer;font-size:13px;color:var(--text2);font-family:inherit;transition:all .1s}
+.tab:hover{background:var(--bg2)}
+.tab.on{background:var(--bg);border-color:var(--border2);color:var(--text);font-weight:500}
+
+/* Cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg2);border-radius:var(--r);padding:.875rem 1rem}
+.kpi-l{font-size:11px;color:var(--text2);margin-bottom:4px}
+.kpi-v{font-size:20px;font-weight:600;font-family:monospace;letter-spacing:-.02em}
+.kpi-s{font-size:11px;color:var(--text3);margin-top:2px}
+.kv-def{color:var(--text)}
+.kv-pos{color:var(--green)}
+.kv-neg{color:var(--red)}
+.kv-amb{color:var(--amber)}
+
+.card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--rl);padding:1.125rem;margin-bottom:12px;overflow:hidden}
+.card-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.card-t{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.05em;text-transform:uppercase}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:580px){.two-col{grid-template-columns:1fr}}
+
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:8px 10px;text-align:right;font-size:10.5px;font-weight:600;color:var(--text2);border-bottom:.5px solid var(--border);white-space:nowrap;letter-spacing:.02em}
+th:first-child{text-align:left}
+td{padding:9px 10px;border-bottom:.5px solid var(--border);text-align:right;color:var(--text);vertical-align:middle}
+td:first-child{text-align:left;font-weight:500}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg2)}
+.mn{font-family:monospace}
+.pos{color:var(--green);font-family:monospace}
+.neg{color:var(--red);font-family:monospace}
+.amb{color:var(--amber);font-family:monospace}
+.blu{color:var(--blue-text);font-family:monospace}
+
+/* Badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;background:var(--bg2);color:var(--text2);border:.5px solid var(--border)}
+
+/* Chart */
+.chart-wrap{position:relative;height:210px}
+
+/* Empty / loading */
+.empty{text-align:center;padding:2.5rem;color:var(--text3);font-size:13px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--blue-text);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Rebalance bar */
+.reb-bar-bg{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;flex:1}
+.reb-bar{height:100%;border-radius:3px;transition:width .3s}
+
+/* Info note */
+.note{font-size:11px;color:var(--text3);margin-top:8px;padding:8px 10px;background:var(--bg2);border-radius:var(--r)}
+</style>
+</head>
+<body>
+
+<div id="hd">
+  <div id="hd-l">
+    <span style="font-size:22px">📊</span>
+    <div>
+      <h1>個人財務儀表板</h1>
+      <span>資料來源：Google Sheets</span>
+    </div>
+  </div>
+  <div id="hd-r">
+    <span id="sync-time"></span>
+    <button id="sync-btn" onclick="loadAll()">
+      <span class="spin" id="spin" style="display:none"></span>
+      <span>重新整理</span>
+    </button>
+  </div>
+</div>
+
+<div id="wrap">
+  <div id="status"></div>
+  <div class="tabs">
+    <button class="tab on" data-tab="passive">📊 被動配置</button>
+    <button class="tab" data-tab="active">📈 主動投資</button>
+    <button class="tab" data-tab="cf">💰 現金流</button>
+    <button class="tab" data-tab="coll">🎮 收藏</button>
+  </div>
+  <div id="content"><div class="empty"><span class="spin"></span> 載入中...</div></div>
+</div>
+
+<script>
+const SHEET_ID = '1IKi0HiVDa8UmPwEgU9zQ5RJ78UwPWZJFtwMkABTJKfs';
+const SHEETS = {
+  passive: '被動配置',
+  active:  '主動投資',
+  cf:      '現金流',
+  coll:    '收藏',
+};
+
+// ── Utils ─────────────────────────────────────────────────────
+const fmt = {
+  n: v => (v==null||isNaN(v)) ? '—' : Math.round(v).toLocaleString('zh-TW'),
+  p2: v => (v==null||isNaN(v)) ? '—' : `${v>=0?'+':''}${(v*100).toFixed(2)}%`,
+  p1: v => (v==null||isNaN(v)) ? '—' : `${(v*100).toFixed(1)}%`,
+  d: v => v ? String(v).slice(0,10) : '—',
+};
+const cls = v => v == null || isNaN(v) ? 'mn' : v > 0 ? 'pos' : v < 0 ? 'neg' : 'mn';
+
+// ── Google Sheets gviz fetch ──────────────────────────────────
+const cache = {};
+async function fetchSheet(sheetName) {
+  if (cache[sheetName]) return cache[sheetName];
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  // Strip JSONP wrapper
+  const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, ''));
+  if (json.status !== 'ok') throw new Error(json.errors?.[0]?.message || 'Sheets error');
+  const rows = (json.table.rows || []).map(r =>
+    (r.c || []).map(c => c ? (c.f ?? c.v) : null)
+  );
+  cache[sheetName] = rows;
+  return rows;
+}
+
+// ── Charts store ──────────────────────────────────────────────
+const charts = {};
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+  Object.keys(charts).forEach(k => delete charts[k]);
+}
+
+// ── Status bar ────────────────────────────────────────────────
+function showStatus(msg, isErr=false) {
+  const el = document.getElementById('status');
+  el.style.display = 'flex';
+  el.className = isErr ? 'err' : '';
+  el.innerHTML = isErr
+    ? `⚠ ${msg}`
+    : `<span class="spin"></span> ${msg}`;
+}
+function hideStatus() { document.getElementById('status').style.display = 'none'; }
+
+// ── Tab navigation ────────────────────────────────────────────
+let currentTab = 'passive';
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  currentTab = b.dataset.tab;
+  renderTab();
+}));
+
+// ── Load all sheets ───────────────────────────────────────────
+async function loadAll() {
+  const btn = document.getElementById('sync-btn');
+  const spin = document.getElementById('spin');
+  btn.classList.add('loading');
+  spin.style.display = 'inline-block';
+  Object.keys(cache).forEach(k => delete cache[k]);
+  showStatus('正在從 Google Sheets 讀取資料...');
+  try {
+    await Promise.all(Object.values(SHEETS).map(fetchSheet));
+    hideStatus();
+    document.getElementById('sync-time').textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    renderTab();
+  } catch(e) {
+    showStatus('無法讀取試算表。請確認 Google Sheets 已設定為「知道連結的人可以檢視」。錯誤：' + e.message, true);
+    document.getElementById('content').innerHTML = '<div class="empty">讀取失敗，請按「重新整理」重試</div>';
+  }
+  btn.classList.remove('loading');
+  spin.style.display = 'none';
+}
+
+function renderTab() {
+  destroyCharts();
+  if (currentTab === 'passive') renderPassive();
+  else if (currentTab === 'active') renderActive();
+  else if (currentTab === 'cf') renderCF();
+  else if (currentTab === 'coll') renderColl();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 被動配置
+// All data is pre-calculated in Google Sheets (cols F-L)
+// row index: 0=header(row1), 1=(row2), 2=header(row3), 3+=data
+// ══════════════════════════════════════════════════════════════
+function renderPassive() {
+  const rows = cache[SHEETS.passive] || [];
+  // data starts at gviz row index 3 (0-based), skip empty
+  const data = rows.slice(3).filter(r => r[0]);
+
+  // KPIs from calculated columns
+  const totalMV  = data.reduce((s,r) => s + (parseFloat(r[5])||0), 0);
+  const totalCost = data.reduce((s,r) => s + (parseFloat(r[3]||0) * parseFloat(r[2]||0)), 0);
+  const totalPnL  = data.reduce((s,r) => s + (parseFloat(r[6])||0), 0);
+  const totalRet  = totalCost > 0 ? totalPnL / totalCost : null;
+  // Use first row's annualized return as proxy (sheet calculates it)
+  const annArr = data.map(r => parseFloat(r[8])).filter(v => !isNaN(v) && isFinite(v));
+  const avgAnn = annArr.length ? annArr.reduce((a,b)=>a+b,0)/annArr.length : null;
+
+  // Pie chart data
+  const pieData = data.map(r => ({ name: r[0], v: parseFloat(r[5])||0 }));
+
+  // Rebalance
+  const rebData = data.map(r => ({
+    ticker: r[0],
+    cur: parseFloat(r[10]),   // K: 現況比例
+    tgt: parseFloat(r[9]),    // J: 目標比例
+    dev: parseFloat(r[11]),   // L: 偏離度
+  }));
+
+  const tableRows = data.map(r => {
+    const dev = parseFloat(r[11]);
+    const devCls = Math.abs(dev) > 0.03 ? (dev > 0 ? 'neg' : 'pos') : 'mn';
+    const ret = parseFloat(r[7]);
+    const ann = parseFloat(r[8]);
+    return `<tr>
+      <td>${r[0]} <small style="color:var(--text3)">${r[1]||''}</small></td>
+      <td class="mn">${fmt.n(parseFloat(r[2]))}</td>
+      <td class="mn">${parseFloat(r[3]).toFixed(2)}</td>
+      <td class="mn">${parseFloat(r[4]).toFixed(2)}</td>
+      <td class="mn">${fmt.n(parseFloat(r[5]))}</td>
+      <td class="${cls(parseFloat(r[6]))}">${fmt.n(parseFloat(r[6]))}</td>
+      <td class="${cls(ret)}">${fmt.p2(ret)}</td>
+      <td class="${cls(ann)}">${fmt.p2(ann)}</td>
+      <td class="mn">${fmt.p1(parseFloat(r[9]))}</td>
+      <td class="mn">${fmt.p1(parseFloat(r[10]))}</td>
+      <td class="${devCls}">${fmt.p2(dev)}</td>
+    </tr>`;
+  }).join('');
+
+  const COLORS = ['#3B82F6','#8B5CF6','#F59E0B','#10B981','#EF4444','#06B6D4','#EC4899','#84CC16'];
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-l">總市值</div><div class="kpi-v kv-def">${fmt.n(totalMV)}</div></div>
+      <div class="kpi"><div class="kpi-l">總成本</div><div class="kpi-v kv-def">${fmt.n(totalCost)}</div></div>
+      <div class="kpi"><div class="kpi-l">未實現損益</div><div class="kpi-v ${totalPnL>=0?'kv-pos':'kv-neg'}">${fmt.n(totalPnL)}</div><div class="kpi-s">${fmt.p2(totalRet)}</div></div>
+      <div class="kpi"><div class="kpi-l">平均年化報酬</div><div class="kpi-v ${avgAnn!=null&&avgAnn>=0?'kv-amb':'kv-neg'}">${fmt.p2(avgAnn)}</div></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd"><span class="card-t">配置比例</span></div>
+        <div class="chart-wrap"><canvas id="pie-chart" role="img" aria-label="配置圓餅圖"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><span class="card-t">再平衡偏離度</span></div>
+        ${rebData.filter(r=>!isNaN(r.cur)&&!isNaN(r.tgt)).map(r => {
+          const dev = r.cur - r.tgt;
+          const pct = Math.min(Math.abs(dev)*5, 1);
+          const col = Math.abs(dev) > 0.03 ? (dev>0?'#b91c1c':'#15803d') : '#94a3b8';
+          return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px">
+            <span style="width:52px;font-weight:500">${r.ticker}</span>
+            <div class="reb-bar-bg"><div class="reb-bar" style="width:${pct*100}%;background:${col}"></div></div>
+            <span style="min-width:50px;text-align:right;font-family:monospace;font-size:11px;color:${col}">${dev>=0?'+':''}${(dev*100).toFixed(1)}%</span>
+          </div>`;
+        }).join('') || '<div class="empty" style="padding:1rem">填入目標比例後顯示</div>'}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-t">持倉明細</span></div>
+      ${data.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th style="text-align:left">標的</th><th>股數</th><th>成本</th><th>現價</th><th>市值</th><th>損益</th><th>總報酬</th><th>年化</th><th>目標%</th><th>現況%</th><th>偏離</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>` : '<div class="empty">試算表中尚無資料</div>'}
+      <div class="note">💡 請在 Google Sheets「被動配置」頁面更新現價（E欄）與最早買入日（N欄），儀表板按「重新整理」即可同步</div>
+    </div>`;
+
+  if (pieData.filter(d=>d.v>0).length) {
+    const filtered = pieData.filter(d=>d.v>0);
+    charts.pie = new Chart(document.getElementById('pie-chart'), {
+      type: 'doughnut',
+      data: {
+        labels: filtered.map(d=>d.name),
+        datasets: [{ data: filtered.map(d=>d.v), backgroundColor: COLORS.slice(0,filtered.length), borderWidth: 2, borderColor: 'rgba(0,0,0,0.04)' }]
+      },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:10, padding:8 } } } }
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 主動投資
+// ══════════════════════════════════════════════════════════════
+function renderActive() {
+  const rows = cache[SHEETS.active] || [];
+  const data = rows.slice(3).filter(r => r[0] && r[0] !== '合計');
+
+  // YTD base: row index 1 (sheet row 2), col N (index 13)
+  const ytdBase = parseFloat(rows[1]?.[13]) || null;
+
+  const totalMV   = data.reduce((s,r) => s + (parseFloat(r[5])||0), 0);
+  const totalCost = data.reduce((s,r) => s + (parseFloat(r[2]||0) * parseFloat(r[3]||0)), 0);
+  const totalPnL  = data.reduce((s,r) => s + (parseFloat(r[6])||0), 0);
+  const totalRet  = totalCost > 0 ? totalPnL / totalCost : null;
+  const ytdRet    = ytdBase && ytdBase > 0 ? (totalMV - ytdBase) / ytdBase : null;
+
+  const tableRows = data.map(r => {
+    const ret = parseFloat(r[7]);
+    return `<tr>
+      <td class="blu">${r[0]}</td>
+      <td style="font-size:11px;color:var(--text2)">${r[1]==='US'?'🇺🇸':'🇹🇼'} ${r[1]||''}</td>
+      <td class="mn">${fmt.n(parseFloat(r[2]))}</td>
+      <td class="mn">${parseFloat(r[3]).toFixed(2)}</td>
+      <td class="mn">${parseFloat(r[4]).toFixed(2)}</td>
+      <td class="mn">${fmt.n(parseFloat(r[5]))}</td>
+      <td class="${cls(parseFloat(r[6]))}">${fmt.n(parseFloat(r[6]))}</td>
+      <td class="${cls(ret)}" style="font-weight:500">${fmt.p2(ret)}</td>
+      <td style="font-size:11px;color:var(--text2)">${fmt.d(r[8])}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-l">目前市值</div><div class="kpi-v kv-def">${fmt.n(totalMV)}</div></div>
+      <div class="kpi"><div class="kpi-l">總投入成本</div><div class="kpi-v kv-def">${fmt.n(totalCost)}</div></div>
+      <div class="kpi"><div class="kpi-l">未實現損益</div><div class="kpi-v ${totalPnL>=0?'kv-pos':'kv-neg'}">${fmt.n(totalPnL)}</div><div class="kpi-s">${fmt.p2(totalRet)}</div></div>
+      <div class="kpi"><div class="kpi-l">今年績效 (YTD)</div><div class="kpi-v ${ytdRet!=null?(ytdRet>=0?'kv-pos':'kv-neg'):'kv-def'}">${ytdRet!=null?fmt.p2(ytdRet):'—'}</div><div class="kpi-s">${ytdBase?'基準 '+fmt.n(ytdBase):'請填 N2 年初市值'}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-t">持倉明細</span></div>
+      ${data.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th style="text-align:left">標的</th><th>市場</th><th>股數</th><th>均價</th><th>現價</th><th>市值</th><th>損益</th><th>投報率</th><th>買入日</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>` : '<div class="empty">試算表中尚無資料</div>'}
+      <div class="note">💡 請在 Google Sheets「主動投資」頁面更新現價（E欄），並在 N2 填入年初市值以計算 YTD 績效</div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 現金流
+// ══════════════════════════════════════════════════════════════
+function renderCF() {
+  const rows = cache[SHEETS.cf] || [];
+  const data = rows.slice(3).filter(r => r[0]);
+
+  const n = data.length || 1;
+  const avgInc = data.reduce((s,r)=>s+(parseFloat(r[1])||0),0)/n;
+  const avgFix = data.reduce((s,r)=>s+(parseFloat(r[2])||0),0)/n;
+  const avgVrb = data.reduce((s,r)=>s+(parseFloat(r[3])||0),0)/n;
+  const avgInv = data.reduce((s,r)=>s+(parseFloat(r[4])||0),0)/n;
+  const avgSav = avgInc > 0 ? (avgInc-avgFix-avgVrb)/avgInc : null;
+
+  const recent = data.slice(-12);
+  const tableRows = [...data].reverse().slice(0,24).map(r => {
+    const sv = parseFloat(r[5]);
+    const sr = parseFloat(r[6]);
+    return `<tr>
+      <td class="mn">${r[0]}</td>
+      <td class="pos">${fmt.n(parseFloat(r[1]))}</td>
+      <td class="mn">${fmt.n(parseFloat(r[2]))}</td>
+      <td class="mn">${fmt.n(parseFloat(r[3]))}</td>
+      <td class="amb">${fmt.n(parseFloat(r[4]))}</td>
+      <td class="${cls(sv)}">${fmt.n(sv)}</td>
+      <td class="${sr>=0.2?'amb':'mn'}">${fmt.p1(sr)}</td>
+      <td style="font-size:11px;color:var(--text2)">${r[8]||''}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-l">月均收入</div><div class="kpi-v ${data.length?'kv-pos':'kv-def'}">${data.length?fmt.n(avgInc):'—'}</div></div>
+      <div class="kpi"><div class="kpi-l">月均固定支出</div><div class="kpi-v kv-def">${data.length?fmt.n(avgFix):'—'}</div></div>
+      <div class="kpi"><div class="kpi-l">月均變動支出</div><div class="kpi-v kv-def">${data.length?fmt.n(avgVrb):'—'}</div></div>
+      <div class="kpi"><div class="kpi-l">月均投資支出</div><div class="kpi-v ${data.length?'kv-amb':'kv-def'}">${data.length?fmt.n(avgInv):'—'}</div></div>
+      <div class="kpi"><div class="kpi-l">平均儲蓄率</div><div class="kpi-v ${avgSav!=null&&avgSav>=0.2?'kv-amb':'kv-def'}">${data.length?fmt.p1(avgSav):'—'}</div></div>
+    </div>
+    ${recent.length ? `<div class="card">
+      <div class="card-hd"><span class="card-t">近 ${recent.length} 個月支出分布</span></div>
+      <div class="chart-wrap"><canvas id="cf-chart" role="img" aria-label="現金流柱狀圖"></canvas></div>
+    </div>` : ''}
+    <div class="card">
+      <div class="card-hd"><span class="card-t">月度記錄</span></div>
+      ${data.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th style="text-align:left">月份</th><th>收入</th><th>固定</th><th>變動</th><th>投資</th><th>淨儲蓄</th><th>儲蓄率</th><th>備註</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>` : '<div class="empty">試算表中尚無資料</div>'}
+    </div>`;
+
+  if (recent.length) {
+    charts.cf = new Chart(document.getElementById('cf-chart'), {
+      type: 'bar',
+      data: {
+        labels: recent.map(r=>String(r[0]).slice(5)),
+        datasets: [
+          { label:'固定支出', data: recent.map(r=>parseFloat(r[2])||0), backgroundColor:'#3B82F6', stack:'e' },
+          { label:'變動支出', data: recent.map(r=>parseFloat(r[3])||0), backgroundColor:'#8B5CF6', stack:'e' },
+          { label:'投資支出', data: recent.map(r=>parseFloat(r[4])||0), backgroundColor:'#F59E0B', stack:'e' },
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ labels:{ font:{size:11}, boxWidth:10, padding:10 } } },
+        scales:{
+          x:{ ticks:{font:{size:11}}, grid:{display:false} },
+          y:{ ticks:{ font:{size:11}, callback: v => v>=10000 ? (v/10000).toFixed(0)+'萬' : v }, grid:{color:'rgba(128,128,128,0.08)'} }
+        }
+      }
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 收藏
+// ══════════════════════════════════════════════════════════════
+function renderColl() {
+  const rows = cache[SHEETS.coll] || [];
+  const data = rows.slice(3).filter(r => r[0]);
+
+  const totalCost = data.reduce((s,r)=>s+(parseFloat(r[3])||0),0);
+  const totalVal  = data.reduce((s,r)=>s+(parseFloat(r[4])||0),0);
+  const totalGain = totalVal - totalCost;
+
+  const catMap = {};
+  data.forEach(r => { const c=r[1]||'其他'; catMap[c]=(catMap[c]||0)+(parseFloat(r[3])||0); });
+
+  const tableRows = data.map(r => {
+    const gain = parseFloat(r[5]);
+    return `<tr>
+      <td style="max-width:200px">${r[0]}</td>
+      <td><span class="badge">${r[1]||''}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${fmt.d(r[2])}</td>
+      <td class="mn">${fmt.n(parseFloat(r[3]))}</td>
+      <td class="mn">${fmt.n(parseFloat(r[4]))}</td>
+      <td class="${cls(gain)}">${fmt.n(gain)}</td>
+      <td style="font-size:11px;color:var(--text2);max-width:150px">${r[6]||''}</td>
+    </tr>`;
+  }).join('');
+
+  const COLORS = ['#3B82F6','#8B5CF6','#F59E0B','#10B981','#EF4444','#06B6D4','#EC4899'];
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-l">總件數</div><div class="kpi-v kv-def">${data.length} 件</div></div>
+      <div class="kpi"><div class="kpi-l">總入手成本</div><div class="kpi-v kv-def">${fmt.n(totalCost)}</div></div>
+      <div class="kpi"><div class="kpi-l">目前估值</div><div class="kpi-v kv-def">${fmt.n(totalVal)}</div></div>
+      <div class="kpi"><div class="kpi-l">估值損益</div><div class="kpi-v ${totalGain>=0?'kv-pos':'kv-neg'}">${fmt.n(totalGain)}</div></div>
+    </div>
+    ${Object.keys(catMap).length ? `<div class="card">
+      <div class="card-hd"><span class="card-t">分類成本分布</span></div>
+      <div class="chart-wrap"><canvas id="coll-pie" role="img" aria-label="收藏分類圓餅圖"></canvas></div>
+    </div>` : ''}
+    <div class="card">
+      <div class="card-hd"><span class="card-t">收藏清單</span></div>
+      ${data.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th style="text-align:left">名稱</th><th>分類</th><th>入手日</th><th>成本</th><th>估值</th><th>損益</th><th>備註</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>` : '<div class="empty">試算表中尚無資料</div>'}
+    </div>`;
+
+  const catEntries = Object.entries(catMap);
+  if (catEntries.length) {
+    charts.collPie = new Chart(document.getElementById('coll-pie'), {
+      type: 'doughnut',
+      data: {
+        labels: catEntries.map(([k])=>k),
+        datasets: [{ data: catEntries.map(([,v])=>v), backgroundColor: COLORS.slice(0,catEntries.length), borderWidth:2, borderColor:'rgba(0,0,0,0.04)' }]
+      },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:10, padding:8 } } } }
+    });
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
