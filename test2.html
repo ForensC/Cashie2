@@ -225,18 +225,29 @@ function App() {
   const [updated,setUpd]   = useState("");
   const [summary,setSum]   = useState([]);
   const [monthly,setMon]   = useState([]);
+  const [targets,setTgt]   = useState({});
 
   async function load() {
     setLoad(true);
     try {
-      const [r1,r2] = await Promise.all([fetch(csvUrl("passive_summary")),fetch(csvUrl("passive_monthly"))]);
-      if(!r1.ok||!r2.ok) throw 0;
-      const [t1,t2] = await Promise.all([r1.text(),r2.text()]);
-      setSum(parseCsv(t1)); setMon(parseCsv(t2));
+      const [r1,r2,r3] = await Promise.all([
+        fetch(csvUrl("passive_summary")),
+        fetch(csvUrl("passive_monthly")),
+        fetch(csvUrl("passive_targets")),
+      ]);
+      if(!r1.ok||!r2.ok||!r3.ok) throw 0;
+      const [t1,t2,t3] = await Promise.all([r1.text(),r2.text(),r3.text()]);
+      setSum(parseCsv(t1));
+      setMon(parseCsv(t2));
+      // 直接從 passive_targets 讀目標配置，確保小數精度正確
+      const tgtMap = {};
+      parseCsv(t3).forEach(r => { tgtMap[r.ticker] = pct(r.target_pct); });
+      setTgt(tgtMap);
       setUpd(new Date().toLocaleString("zh-TW",{hour12:false}));
       setMock(false);
     } catch {
       setSum(MOCK_S); setMon(MOCK_M);
+      setTgt({ VWRA:52.25, AGGG:10, JPGL:10, AVGS:10, "0050":6.68, "0051":4.39, "006208":6.68 });
       setUpd("⚠ 無法連線 Sheets，顯示預覽假資料");
       setMock(true);
     } finally { setLoad(false); }
@@ -246,11 +257,12 @@ function App() {
   const hs = useMemo(()=>summary.map(r=>({
     ticker:r.ticker, totalShares:num(r.total_shares),
     avgCost:num(r.avg_cost), currentPrice:num(r.current_price),
-    currentValue:num(r.current_value), targetPct:pct(r.target_pct),
+    currentValue:num(r.current_value),
+    targetPct: targets[r.ticker] ?? pct(r.target_pct),
     actualPct:pct(r.actual_pct), diffPct:pct(r.diff_pct),
     xirr:pct(r.xirr), currency:(r.currency||"USD").trim(),
     fxRate:num(r.fx_rate), market:getMarket((r.currency||"USD").trim()),
-  })),[summary]);
+  })),[summary, targets]);
 
   const total = useMemo(()=>hs.reduce((s,h)=>s+h.currentValue,0),[hs]);
 
