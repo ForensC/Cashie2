@@ -226,6 +226,7 @@ function App() {
   const [summary,setSum]   = useState([]);
   const [monthly,setMon]   = useState([]);
   const [targets,setTgt]   = useState({});
+  const [xirr,setXirr]     = useState(null);
 
   async function load() {
     setLoad(true);
@@ -238,7 +239,17 @@ function App() {
       if(!r1.ok||!r2.ok||!r3.ok) throw 0;
       const [t1,t2,t3] = await Promise.all([r1.text(),r2.text(),r3.text()]);
       setSum(parseCsv(t1));
-      setMon(parseCsv(t2));
+      const monRows = parseCsv(t2);
+      setMon(monRows);
+      // passive_monthly D1 存放整體當年度 XIRR（由 Sheets 計算）
+      // gviz CSV 第一行是 header，D欄 index=3
+      const rawLines = t2.trim().split("\n");
+      if (rawLines.length >= 2) {
+        const dataRow = parseCsv(rawLines.slice(0,2).join("\n"));
+        // header 第4欄名稱是 xirr，讀第一筆資料列的 xirr 欄
+        const xirrVal = dataRow[0] ? pct(dataRow[0].xirr || "") : null;
+        setXirr(xirrVal || null);
+      }
       // 直接從 passive_targets 讀目標配置，確保小數精度正確
       const tgtMap = {};
       parseCsv(t3).forEach(r => { tgtMap[r.ticker] = pct(r.target_pct); });
@@ -248,6 +259,7 @@ function App() {
     } catch {
       setSum(MOCK_S); setMon(MOCK_M);
       setTgt({ VWRA:52.25, AGGG:10, JPGL:10, AVGS:10, "0050":6.68, "0051":4.39, "006208":6.68 });
+      setXirr(70.33);
       setUpd("⚠ 無法連線 Sheets，顯示預覽假資料");
       setMock(true);
     } finally { setLoad(false); }
@@ -313,6 +325,7 @@ function App() {
       {!loading&&(
         <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:28}}>
           <Card label="總資產（TWD）" value={`NT$${fmt(total)}`} sub="含匯率換算"/>
+          <Card label="當年度 XIRR" value={xirr!==null?fmtP(xirr):"—"} accent={xirr>=0?"#22c55e":"#ef4444"} sub="Sheets 計算"/>
           <Card label="本月資產變動" value={mg!==null?fmtP(mg):"—"} accent={mg>=0?"#22c55e":"#ef4444"} sub="vs 上月底"/>
           <Card label="持有標的數" value={hs.length} sub="跨市場 ETF"/>
         </div>
@@ -502,18 +515,11 @@ function App() {
           {tab==="return"&&(
             <div>
               <div style={{background:"linear-gradient(135deg,rgba(34,197,94,0.12),rgba(16,185,129,0.06))",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"28px 32px",marginBottom:20}}>
-                <div style={{fontSize:13,color:"#86efac",letterSpacing:"0.08em",marginBottom:16}}>各標的年化報酬（XIRR）</div>
-                <div style={{display:"flex",gap:40,flexWrap:"wrap"}}>
-                  {hs.map(h=>(
-                    <div key={h.ticker}>
-                      <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>{h.ticker}</div>
-                      <div style={{fontSize:36,fontWeight:800,fontFamily:"'Syne',sans-serif",color:h.xirr>=0?"#22c55e":"#ef4444",lineHeight:1}}>
-                        {h.xirr>=0?"+":""}{h.xirr.toFixed(2)}%
-                      </div>
-                    </div>
-                  ))}
+                <div style={{fontSize:13,color:"#86efac",letterSpacing:"0.08em",marginBottom:8}}>當年度整體年化報酬（XIRR）</div>
+                <div style={{fontSize:56,fontWeight:800,fontFamily:"'Syne',sans-serif",color:xirr>=0?"#22c55e":"#ef4444",lineHeight:1,marginBottom:16}}>
+                  {xirr!==null?(xirr>=0?"+":"")+xirr.toFixed(2)+"%":"—"}
                 </div>
-                <div style={{fontSize:11,color:"#64748b",marginTop:16}}>資料來源：Google Sheets XIRR 函數　｜　Sheets 更新後點「重新整理」即同步</div>
+                <div style={{fontSize:11,color:"#64748b"}}>計算基準：{new Date().getFullYear()} 年初資產 → 今日總市值　｜　Sheets 更新後點「重新整理」即同步</div>
               </div>
               <div style={{...box,padding:24}}>
                 <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>持倉成本明細</div>
@@ -521,7 +527,7 @@ function App() {
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:560}}>
                     <thead>
                       <tr style={{color:"#64748b",borderBottom:"1px solid #1e293b"}}>
-                        {["代號","市場","持股數","平均成本","現價","現值(TWD)","XIRR"].map(h=>(
+                        {["代號","市場","持股數","平均成本","現價","現值(TWD)"].map(h=>(
                           <th key={h} style={{textAlign:"left",padding:"8px 12px",fontWeight:500}}>{h}</th>
                         ))}
                       </tr>
@@ -535,7 +541,7 @@ function App() {
                           <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{fmt(h.avgCost,2)}</td>
                           <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{fmt(h.currentPrice,2)}</td>
                           <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:600,color:"#e2e8f0"}}>NT${fmt(h.currentValue)}</td>
-                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:700,color:h.xirr>=0?"#22c55e":"#ef4444"}}>{h.xirr>=0?"+":""}{h.xirr.toFixed(2)}%</td>
+
                         </tr>
                       ))}
                     </tbody>
