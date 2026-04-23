@@ -68,6 +68,9 @@ function parseRow(line) {
   return [...res, cur];
 }
 const num = s => parseFloat(String(s||0).replace(/[NT$,%\s]/g,"")) || 0;
+// Google Sheets 百分比格式匯出 CSV 時會自動除以 100（52.25% → 0.5225）
+// 此函式偵測到小數時自動乘回 100
+const pct = s => { const v = num(s); return Math.abs(v) < 1 && v !== 0 ? v * 100 : v; };
 
 /* ── 常數 ───────────────────────────────────────────────── */
 const MC = { TW:"#22c55e", US:"#3b82f6", UK:"#f59e0b" };
@@ -243,9 +246,9 @@ function App() {
   const hs = useMemo(()=>summary.map(r=>({
     ticker:r.ticker, totalShares:num(r.total_shares),
     avgCost:num(r.avg_cost), currentPrice:num(r.current_price),
-    currentValue:num(r.current_value), targetPct:num(r.target_pct),
-    actualPct:num(r.actual_pct), diffPct:num(r.diff_pct),
-    xirr:num(r.xirr), currency:(r.currency||"USD").trim(),
+    currentValue:num(r.current_value), targetPct:pct(r.target_pct),
+    actualPct:pct(r.actual_pct), diffPct:pct(r.diff_pct),
+    xirr:pct(r.xirr), currency:(r.currency||"USD").trim(),
     fxRate:num(r.fx_rate), market:getMarket((r.currency||"USD").trim()),
   })),[summary]);
 
