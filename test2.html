@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>被動投資總覽</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0f1117; color: #f1f5f9; font-family: 'Noto Sans TC', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    input:focus { outline: none; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    @keyframes spin   { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useEffect, useRef } = React;
+
+/* ── Google Sheets ─────────────────────────────────────── */
+const SHEET_ID = "1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg";
+const csvUrl = s => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(s)}`;
+
+/* ── 假資料 ─────────────────────────────────────────────── */
+const MOCK_S = [
+  { ticker:"VWRA",  total_shares:"137",  avg_cost:"149.54", current_price:"179.65", current_value:"776326", target_pct:"52.25%", actual_pct:"35.4%", diff_pct:"-16.85%", xirr:"17.25%", currency:"USD", fx_rate:"31.54" },
+  { ticker:"0050",  total_shares:"300",  avg_cost:"168.00", current_price:"185.50", current_value:"556500", target_pct:"25%",    actual_pct:"28.1%", diff_pct:"-3.1%",   xirr:"14.20%", currency:"TWD", fx_rate:"1" },
+  { ticker:"00878", total_shares:"2000", avg_cost:"20.50",  current_price:"22.80",  current_value:"456000", target_pct:"15%",    actual_pct:"23.0%", diff_pct:"-8.0%",   xirr:"11.80%", currency:"TWD", fx_rate:"1" },
+  { ticker:"VTI",   total_shares:"40",   avg_cost:"210.00", current_price:"245.30", current_value:"318890", target_pct:"7.75%",  actual_pct:"16.1%", diff_pct:"-8.35%",  xirr:"19.40%", currency:"USD", fx_rate:"31.54" },
+];
+const MOCK_M = [
+  { month:"2024/08", total_value:"1620000" },
+  { month:"2024/09", total_value:"1590000" },
+  { month:"2024/10", total_value:"1680000" },
+  { month:"2024/11", total_value:"1750000" },
+  { month:"2024/12", total_value:"1820000" },
+  { month:"2025/01", total_value:"1866357" },
+  { month:"2025/02", total_value:"1910000" },
+  { month:"2025/03", total_value:"1955000" },
+  { month:"2025/04", total_value:"1982400" },
+];
+
+/* ── CSV 解析 ───────────────────────────────────────────── */
+function parseCsv(text) {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = parseRow(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = parseRow(line), obj = {};
+    headers.forEach((h, i) => { obj[h.trim()] = (vals[i] ?? "").trim(); });
+    return obj;
+  }).filter(r => Object.values(r).some(v => v !== ""));
+}
+function parseRow(line) {
+  const res = []; let cur = "", q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (q && line[i+1] === '"') { cur += '"'; i++; } else q = !q; }
+    else if (c === ',' && !q) { res.push(cur); cur = ""; }
+    else cur += c;
+  }
+  return [...res, cur];
+}
+const num = s => parseFloat(String(s||0).replace(/[NT$,%\s]/g,"")) || 0;
+
+/* ── 常數 ───────────────────────────────────────────────── */
+const MC = { TW:"#22c55e", US:"#3b82f6", UK:"#f59e0b" };
+const ML = { TW:"台股", US:"美股", UK:"英股" };
+const getMarket = c => c==="TWD"?"TW":c==="GBP"?"UK":"US";
+const fmt  = (n,d=0) => isNaN(n)||n==null?"—":n.toLocaleString("zh-TW",{maximumFractionDigits:d});
+const fmtP = n => isNaN(n)?"—":(n>=0?"+":"")+n.toFixed(2)+"%";
+
+/* ── SVG 圓餅圖 ─────────────────────────────────────────── */
+function PieChart({ data, size=180 }) {
+  const r = size/2, cx = r, cy = r, ir = r*0.54, or = r*0.82;
+  const total = data.reduce((s,d)=>s+d.value,0);
+  let angle = -Math.PI/2;
+  const slices = data.map(d => {
+    const sweep = (d.value/total)*Math.PI*2;
+    const a1=angle, a2=angle+sweep;
+    angle = a2;
+    const x1=cx+or*Math.cos(a1), y1=cy+or*Math.sin(a1);
+    const x2=cx+or*Math.cos(a2), y2=cy+or*Math.sin(a2);
+    const xi1=cx+ir*Math.cos(a1), yi1=cy+ir*Math.sin(a1);
+    const xi2=cx+ir*Math.cos(a2), yi2=cy+ir*Math.sin(a2);
+    const lg = sweep>Math.PI?1:0;
+    const path=`M${xi1},${yi1} L${x1},${y1} A${or},${or} 0 ${lg},1 ${x2},${y2} L${xi2},${yi2} A${ir},${ir} 0 ${lg},0 ${xi1},${yi1} Z`;
+    const mx=cx+(ir+or)/2*Math.cos((a1+a2)/2), my=cy+(ir+or)/2*Math.sin((a1+a2)/2);
+    return { ...d, path, mx, my, pct:(d.value/total*100).toFixed(1) };
+  });
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {slices.map((s,i)=>(
+          <path key={i} d={s.path} fill={MC[s.market]||"#94a3b8"} opacity={0.9}/>
+        ))}
+      </svg>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {slices.map((s,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}>
+            <div style={{width:10,height:10,borderRadius:2,background:MC[s.market]||"#94a3b8",flexShrink:0}}/>
+            <span style={{color:"#94a3b8"}}>{s.label}</span>
+            <span style={{fontFamily:"'DM Mono',monospace",color:"#e2e8f0"}}>{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── SVG 折線圖 ─────────────────────────────────────────── */
+function LineChart({ data, width=600, height=240 }) {
+  const ref = useRef(null);
+  const [w, setW] = useState(width);
+  useEffect(()=>{
+    if(!ref.current) return;
+    const ro = new ResizeObserver(e=>setW(e[0].contentRect.width));
+    ro.observe(ref.current);
+    return ()=>ro.disconnect();
+  },[]);
+
+  if (!data || data.length === 0) return null;
+  const pad = { t:16, r:16, b:40, l:56 };
+  const iw = Math.max(w - pad.l - pad.r, 10);
+  const ih = height - pad.t - pad.b;
+  const vals = data.map(d=>d.value);
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const px = i => pad.l + (i/(data.length-1))*iw;
+  const py = v => pad.t + ih - ((v-minV)/range)*ih;
+
+  const pts = data.map((d,i)=>`${px(i)},${py(d.value)}`).join(" ");
+  const area = `M${px(0)},${py(data[0].value)} ` +
+    data.map((d,i)=>`L${px(i)},${py(d.value)}`).join(" ") +
+    ` L${px(data.length-1)},${pad.t+ih} L${px(0)},${pad.t+ih} Z`;
+
+  // Y軸刻度
+  const ticks = 4;
+  const yTicks = Array.from({length:ticks+1},(_,i)=>minV+(maxV-minV)*(i/ticks));
+
+  const [tip, setTip] = useState(null);
+
+  return (
+    <div ref={ref} style={{width:"100%"}}>
+      <svg width="100%" height={height} style={{overflow:"visible"}}>
+        <defs>
+          <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.3}/>
+            <stop offset="100%" stopColor="#22c55e" stopOpacity={0}/>
+          </linearGradient>
+        </defs>
+        {/* 格線 */}
+        {yTicks.map((v,i)=>(
+          <g key={i}>
+            <line x1={pad.l} y1={py(v)} x2={pad.l+iw} y2={py(v)} stroke="#1e293b" strokeDasharray="3,3"/>
+            <text x={pad.l-8} y={py(v)+4} textAnchor="end" fill="#64748b" fontSize={10}>
+              {(v/10000).toFixed(0)}萬
+            </text>
+          </g>
+        ))}
+        {/* X 軸標籤 */}
+        {data.map((d,i)=>(
+          (i===0||i===data.length-1||(i%Math.ceil(data.length/5)===0)) &&
+          <text key={i} x={px(i)} y={pad.t+ih+18} textAnchor="middle" fill="#64748b" fontSize={10}>{d.month}</text>
+        ))}
+        {/* 面積 */}
+        <path d={area} fill="url(#ag)"/>
+        {/* 折線 */}
+        <polyline points={pts} fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinejoin="round"/>
+        {/* 點 + tooltip 觸發 */}
+        {data.map((d,i)=>(
+          <g key={i} onMouseEnter={()=>setTip({i,d})} onMouseLeave={()=>setTip(null)} style={{cursor:"pointer"}}>
+            <circle cx={px(i)} cy={py(d.value)} r={tip?.i===i?6:4} fill="#22c55e" opacity={tip?.i===i?1:0.8}/>
+            {tip?.i===i && (
+              <g>
+                <rect x={px(i)-60} y={py(d.value)-38} width={120} height={28} rx={6} fill="#1e2433" stroke="#334155"/>
+                <text x={px(i)} y={py(d.value)-20} textAnchor="middle" fill="#f1f5f9" fontSize={11} fontFamily="'DM Mono',monospace">
+                  {d.month}
+                </text>
+                <text x={px(i)} y={py(d.value)-8} textAnchor="middle" fill="#22c55e" fontSize={11} fontFamily="'DM Mono',monospace">
+                  NT${fmt(d.value)}
+                </text>
+              </g>
+            )}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/* ── 小元件 ─────────────────────────────────────────────── */
+const Card = ({label,value,sub,accent})=>(
+  <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 24px",flex:1,minWidth:150}}>
+    <div style={{fontSize:12,color:"#9ca3af",letterSpacing:"0.08em",marginBottom:8}}>{label}</div>
+    <div style={{fontSize:22,fontWeight:700,color:accent||"#f1f5f9",fontFamily:"'DM Mono',monospace"}}>{value}</div>
+    {sub&&<div style={{fontSize:12,color:"#6b7280",marginTop:4}}>{sub}</div>}
+  </div>
+);
+const Badge=({market})=>{const c=MC[market]||"#94a3b8";return(
+  <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:c+"22",color:c,border:`1px solid ${c}44`}}>{ML[market]||market}</span>
+);};
+const Spin=()=>(
+  <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:80,gap:16}}>
+    <div style={{width:36,height:36,border:"3px solid #1e293b",borderTopColor:"#22c55e",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+    <span style={{color:"#64748b",fontSize:13}}>正在讀取 Google Sheets 資料…</span>
+  </div>
+);
+
+/* ── 主程式 ─────────────────────────────────────────────── */
+function App() {
+  const [tab,setTab]       = useState("overview");
+  const [fund,setFund]     = useState("");
+  const [loading,setLoad]  = useState(true);
+  const [isMock,setMock]   = useState(false);
+  const [updated,setUpd]   = useState("");
+  const [summary,setSum]   = useState([]);
+  const [monthly,setMon]   = useState([]);
+
+  async function load() {
+    setLoad(true);
+    try {
+      const [r1,r2] = await Promise.all([fetch(csvUrl("passive_summary")),fetch(csvUrl("passive_monthly"))]);
+      if(!r1.ok||!r2.ok) throw 0;
+      const [t1,t2] = await Promise.all([r1.text(),r2.text()]);
+      setSum(parseCsv(t1)); setMon(parseCsv(t2));
+      setUpd(new Date().toLocaleString("zh-TW",{hour12:false}));
+      setMock(false);
+    } catch {
+      setSum(MOCK_S); setMon(MOCK_M);
+      setUpd("⚠ 無法連線 Sheets，顯示預覽假資料");
+      setMock(true);
+    } finally { setLoad(false); }
+  }
+  useEffect(()=>{load();},[]);
+
+  const hs = useMemo(()=>summary.map(r=>({
+    ticker:r.ticker, totalShares:num(r.total_shares),
+    avgCost:num(r.avg_cost), currentPrice:num(r.current_price),
+    currentValue:num(r.current_value), targetPct:num(r.target_pct),
+    actualPct:num(r.actual_pct), diffPct:num(r.diff_pct),
+    xirr:num(r.xirr), currency:(r.currency||"USD").trim(),
+    fxRate:num(r.fx_rate), market:getMarket((r.currency||"USD").trim()),
+  })),[summary]);
+
+  const total = useMemo(()=>hs.reduce((s,h)=>s+h.currentValue,0),[hs]);
+
+  const md = useMemo(()=>monthly.map(r=>({month:r.month,value:num(r.total_value),note:r.note||""})).filter(r=>r.value>0),[monthly]);
+
+  const fundNum = parseFloat(fund.replace(/,/g,""))||0;
+  const rb = useMemo(()=>hs.map(h=>{
+    const tv=(h.targetPct/100)*(total+fundNum);
+    const dv=tv-h.currentValue;
+    const pTWD=h.currency==="TWD"?h.currentPrice:h.currentPrice*h.fxRate;
+    return {...h,targetValue:tv,diffValue:dv,approxShares:pTWD>0?Math.abs(dv)/pTWD:0};
+  }),[hs,total,fundNum]);
+
+  const pie = useMemo(()=>{
+    const m={};
+    hs.forEach(h=>{m[h.market]=(m[h.market]||0)+h.currentValue;});
+    return Object.entries(m).map(([market,value])=>({market,value,label:ML[market]||market}));
+  },[hs]);
+
+  const mg = useMemo(()=>{
+    if(md.length<2) return null;
+    return ((md.at(-1).value-md.at(-2).value)/md.at(-2).value)*100;
+  },[md]);
+
+  const TABS=[{id:"overview",l:"資產總覽"},{id:"rebalance",l:"再平衡"},{id:"growth",l:"成長曲線"},{id:"return",l:"年化報酬"}];
+  const box={background:"rgba(255,255,255,0.03)",borderRadius:16,border:"1px solid rgba(255,255,255,0.06)"};
+  const sym=h=>h.currency==="TWD"?"NT$":h.currency==="GBP"?"£":"$";
+
+  return (
+    <div style={{minHeight:"100vh",background:"#0f1117",color:"#f1f5f9",fontFamily:"'Noto Sans TC',sans-serif",padding:"32px 20px",maxWidth:1000,margin:"0 auto"}}>
+
+      {/* 標題 */}
+      <div style={{marginBottom:28}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 10px #22c55e",animation:"pulse 2s infinite"}}/>
+          <span style={{fontSize:11,color:"#22c55e",letterSpacing:"0.12em",fontWeight:600}}>{isMock?"預覽模式（假資料）":"Google Sheets 即時資料"}</span>
+        </div>
+        <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:30,fontWeight:800,background:"linear-gradient(135deg,#f1f5f9,#94a3b8)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+          被動投資總覽
+        </h1>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginTop:6,flexWrap:"wrap"}}>
+          <p style={{color:"#64748b",fontSize:12}}>{updated||"讀取中…"}</p>
+          <button onClick={load} style={{background:"none",border:"1px solid #334155",borderRadius:6,color:"#64748b",fontSize:11,padding:"2px 10px",cursor:"pointer"}}>↻ 重新整理</button>
+        </div>
+      </div>
+
+      {/* 統計卡 */}
+      {!loading&&(
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:28}}>
+          <Card label="總資產（TWD）" value={`NT$${fmt(total)}`} sub="含匯率換算"/>
+          <Card label="本月資產變動" value={mg!==null?fmtP(mg):"—"} accent={mg>=0?"#22c55e":"#ef4444"} sub="vs 上月底"/>
+          <Card label="持有標的數" value={hs.length} sub="跨市場 ETF"/>
+        </div>
+      )}
+
+      {/* 頁籤 */}
+      <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:"1px solid #1e293b"}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            background:"none",border:"none",cursor:"pointer",
+            color:tab===t.id?"#f1f5f9":"#64748b",
+            fontSize:13,fontWeight:tab===t.id?700:400,
+            padding:"8px 16px",marginBottom:-1,
+            borderBottom:tab===t.id?"2px solid #22c55e":"2px solid transparent",
+            transition:"all 0.2s",fontFamily:"'Noto Sans TC',sans-serif",
+          }}>{t.l}</button>
+        ))}
+      </div>
+
+      {loading&&<Spin/>}
+
+      {!loading&&(
+        <div>
+
+          {/* 資產總覽 */}
+          {tab==="overview"&&(
+            <div>
+              <div style={{...box,overflow:"hidden",marginBottom:24}}>
+                <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:13,color:"#64748b",display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:4}}>
+                  <span>持股明細與配置差異</span>
+                  <span style={{fontSize:11}}>目標配置 → Sheets: passive_targets</span>
+                </div>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:680}}>
+                    <thead>
+                      <tr style={{color:"#64748b",borderBottom:"1px solid #1e293b",background:"rgba(0,0,0,0.2)"}}>
+                        {["代號","市場","股數","現價","市值(TWD)","目標%","實際%","差異","建議"].map(h=>(
+                          <th key={h} style={{textAlign:"left",padding:"10px 14px",fontWeight:500,whiteSpace:"nowrap"}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hs.map((h,i)=>{
+                        const ok=Math.abs(h.diffPct)<=2, over=h.diffPct>0;
+                        const dc=ok?"#22c55e":over?"#f59e0b":"#ef4444";
+                        const need=((h.targetPct-h.actualPct)/100)*total;
+                        return (
+                          <tr key={h.ticker} style={{borderBottom:"1px solid #0f172a",background:i%2===0?"transparent":"rgba(255,255,255,0.012)"}}>
+                            <td style={{padding:"14px 14px",fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0"}}>{h.ticker}</td>
+                            <td style={{padding:"14px 14px"}}><Badge market={h.market}/></td>
+                            <td style={{padding:"14px 14px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{fmt(h.totalShares,4)}</td>
+                            <td style={{padding:"14px 14px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{fmt(h.currentPrice,2)}</td>
+                            <td style={{padding:"14px 14px",fontFamily:"'DM Mono',monospace",fontWeight:600,color:"#e2e8f0"}}>NT${fmt(h.currentValue)}</td>
+                            <td style={{padding:"14px 14px",fontFamily:"'DM Mono',monospace",color:"#64748b"}}>{h.targetPct.toFixed(2)}%</td>
+                            <td style={{padding:"14px 14px"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <div style={{width:44,height:4,background:"#1e293b",borderRadius:2,flexShrink:0}}>
+                                  <div style={{width:`${Math.min((h.actualPct/Math.max(h.targetPct,1))*100,150)}%`,maxWidth:"100%",height:"100%",borderRadius:2,background:MC[h.market]||"#3b82f6"}}/>
+                                </div>
+                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#e2e8f0"}}>{h.actualPct.toFixed(1)}%</span>
+                              </div>
+                            </td>
+                            <td style={{padding:"14px 14px"}}>
+                              <span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:dc}}>{h.diffPct>=0?"+":""}{h.diffPct.toFixed(1)}%</span>
+                            </td>
+                            <td style={{padding:"14px 14px"}}>
+                              {ok
+                                ?<span style={{fontSize:11,color:"#22c55e",background:"rgba(34,197,94,0.1)",padding:"3px 8px",borderRadius:5}}>✓ 正常</span>
+                                :<div>
+                                  <span style={{fontSize:11,fontWeight:700,color:over?"#f59e0b":"#22c55e",background:over?"rgba(245,158,11,0.1)":"rgba(34,197,94,0.1)",padding:"3px 8px",borderRadius:5}}>{over?"▼ 減少":"▲ 增加"}</span>
+                                  <div style={{fontSize:11,color:"#64748b",marginTop:4,fontFamily:"'DM Mono',monospace"}}>NT${fmt(Math.abs(need))}</div>
+                                </div>
+                              }
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{padding:"10px 20px",borderTop:"1px solid #0f172a",fontSize:12,color:"#64748b"}}>
+                  總資產 <span style={{color:"#e2e8f0",fontFamily:"'DM Mono',monospace"}}>NT${fmt(total)}</span>　｜　差異 ±2% 以內視為正常
+                </div>
+              </div>
+
+              <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+                <div style={{...box,flex:1,minWidth:240,padding:24}}>
+                  <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>市場分布</div>
+                  <PieChart data={pie}/>
+                </div>
+                <div style={{...box,flex:1,minWidth:240,padding:24}}>
+                  <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>各標的 XIRR & 匯率</div>
+                  {hs.map(h=>(
+                    <div key={h.ticker} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1e293b"}}>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0"}}>{h.ticker}</span>
+                        <Badge market={h.market}/>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:11,color:"#64748b"}}>{h.currency!=="TWD"?`1 ${h.currency} = ${fmt(h.fxRate,4)} TWD`:"台幣計價"}</div>
+                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:700,color:h.xirr>=0?"#22c55e":"#ef4444"}}>XIRR {h.xirr>=0?"+":""}{h.xirr.toFixed(2)}%</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 再平衡 */}
+          {tab==="rebalance"&&(
+            <div>
+              <div style={{...box,padding:24,marginBottom:20}}>
+                <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>本次新投入資金（TWD）</div>
+                <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+                  <span style={{color:"#64748b",fontSize:16}}>NT$</span>
+                  <input type="text" placeholder="例如：50000" value={fund} onChange={e=>setFund(e.target.value)}
+                    style={{background:"#1e293b",border:"1px solid #334155",borderRadius:10,padding:"10px 16px",color:"#f1f5f9",fontSize:15,fontFamily:"'DM Mono',monospace",width:200}}/>
+                  {fundNum>0&&<span style={{fontSize:12,color:"#64748b"}}>再平衡總金額：NT${fmt(total+fundNum)}</span>}
+                </div>
+              </div>
+              <div style={{...box,padding:24}}>
+                <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>各標的再平衡建議</div>
+                {rb.map(h=>{
+                  const over=h.diffValue<0, noAct=Math.abs(h.diffValue)<1000;
+                  return(
+                    <div key={h.ticker} style={{padding:"16px 0",borderBottom:"1px solid #0f172a"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:8}}>
+                        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                          <span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0",fontSize:15}}>{h.ticker}</span>
+                          <Badge market={h.market}/>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          {noAct
+                            ?<span style={{fontSize:13,color:"#22c55e"}}>✓ 無需調整</span>
+                            :<>
+                              <div style={{fontSize:14,fontWeight:700,fontFamily:"'DM Mono',monospace",color:over?"#f59e0b":"#22c55e"}}>
+                                {over?"▼ 減少":"▲ 增加"} NT${fmt(Math.abs(h.diffValue))}
+                              </div>
+                              <div style={{fontSize:11,color:"#64748b",marginTop:2}}>約 {h.approxShares.toFixed(2)} 股　@　{sym(h)}{fmt(h.currentPrice,2)}</div>
+                            </>
+                          }
+                        </div>
+                      </div>
+                      <div style={{fontSize:12,color:"#64748b",display:"flex",gap:12,flexWrap:"wrap"}}>
+                        <span>現值 NT${fmt(h.currentValue)}</span><span>→</span>
+                        <span>目標 NT${fmt(h.targetValue)} ({h.targetPct.toFixed(2)}%)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {fundNum<=0&&(
+                  <div style={{marginTop:16,padding:12,background:"rgba(59,130,246,0.08)",borderRadius:10,border:"1px solid rgba(59,130,246,0.2)",fontSize:12,color:"#93c5fd"}}>
+                    ↑ 填入新投入金額，計算最佳資金分配方式
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 成長曲線 */}
+          {tab==="growth"&&(
+            <div style={{...box,padding:24}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
+                <div>
+                  <div style={{fontSize:13,color:"#64748b"}}>每月資產總值</div>
+                  <div style={{fontSize:24,fontWeight:700,fontFamily:"'DM Mono',monospace",color:"#22c55e",marginTop:4}}>NT${fmt(md.at(-1)?.value||0)}</div>
+                  {md.at(-1)?.note&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>{md.at(-1).note}</div>}
+                </div>
+                {md.length>=2&&(
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:12,color:"#64748b"}}>累計成長（{md[0].month} 起）</div>
+                    <div style={{fontSize:16,fontWeight:700,color:"#22c55e",fontFamily:"'DM Mono',monospace"}}>
+                      {fmtP(((md.at(-1).value-md[0].value)/md[0].value)*100)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {md.length>0
+                ?<LineChart data={md} height={260}/>
+                :<div style={{textAlign:"center",color:"#64748b",padding:40}}>尚無月度資料，請在 passive_monthly 填入紀錄</div>
+              }
+            </div>
+          )}
+
+          {/* 年化報酬 */}
+          {tab==="return"&&(
+            <div>
+              <div style={{background:"linear-gradient(135deg,rgba(34,197,94,0.12),rgba(16,185,129,0.06))",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"28px 32px",marginBottom:20}}>
+                <div style={{fontSize:13,color:"#86efac",letterSpacing:"0.08em",marginBottom:16}}>各標的年化報酬（XIRR）</div>
+                <div style={{display:"flex",gap:40,flexWrap:"wrap"}}>
+                  {hs.map(h=>(
+                    <div key={h.ticker}>
+                      <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>{h.ticker}</div>
+                      <div style={{fontSize:36,fontWeight:800,fontFamily:"'Syne',sans-serif",color:h.xirr>=0?"#22c55e":"#ef4444",lineHeight:1}}>
+                        {h.xirr>=0?"+":""}{h.xirr.toFixed(2)}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:11,color:"#64748b",marginTop:16}}>資料來源：Google Sheets XIRR 函數　｜　Sheets 更新後點「重新整理」即同步</div>
+              </div>
+              <div style={{...box,padding:24}}>
+                <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>持倉成本明細</div>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:560}}>
+                    <thead>
+                      <tr style={{color:"#64748b",borderBottom:"1px solid #1e293b"}}>
+                        {["代號","市場","持股數","平均成本","現價","現值(TWD)","XIRR"].map(h=>(
+                          <th key={h} style={{textAlign:"left",padding:"8px 12px",fontWeight:500}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hs.map((h,i)=>(
+                        <tr key={h.ticker} style={{borderBottom:"1px solid #0f172a",background:i%2===0?"transparent":"rgba(255,255,255,0.012)"}}>
+                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0"}}>{h.ticker}</td>
+                          <td style={{padding:"13px 12px"}}><Badge market={h.market}/></td>
+                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{fmt(h.totalShares,4)}</td>
+                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{fmt(h.avgCost,2)}</td>
+                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{fmt(h.currentPrice,2)}</td>
+                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:600,color:"#e2e8f0"}}>NT${fmt(h.currentValue)}</td>
+                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:700,color:h.xirr>=0?"#22c55e":"#ef4444"}}>{h.xirr>=0?"+":""}{h.xirr.toFixed(2)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
