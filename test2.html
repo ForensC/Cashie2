@@ -129,7 +129,7 @@ function LineChart({ data, width=600, height=240 }) {
   },[]);
 
   if (!data || data.length === 0) return null;
-  const pad = { t:16, r:16, b:40, l:56 };
+  const pad = { t:16, r:16, b:56, l:56 };
   const iw = Math.max(w - pad.l - pad.r, 10);
   const ih = height - pad.t - pad.b;
   const vals = data.map(d=>d.value);
@@ -167,11 +167,16 @@ function LineChart({ data, width=600, height=240 }) {
             </text>
           </g>
         ))}
-        {/* X 軸標籤 */}
-        {data.map((d,i)=>(
-          (i===0||i===data.length-1||(i%Math.ceil(data.length/5)===0)) &&
-          <text key={i} x={px(i)} y={pad.t+ih+18} textAnchor="middle" fill="#64748b" fontSize={10}>{d.month}</text>
-        ))}
+        {/* X 軸標籤：每月都顯示，超過8筆就旋轉45度避免重疊 */}
+        {data.map((d,i)=>{
+          const rotate = data.length > 8;
+          const xPos = px(i);
+          const yPos = pad.t+ih+18;
+          return rotate
+            ? <text key={i} x={xPos} y={yPos} textAnchor="end" fill="#64748b" fontSize={10}
+                transform={`rotate(-40, ${xPos}, ${yPos})`}>{d.month}</text>
+            : <text key={i} x={xPos} y={yPos} textAnchor="middle" fill="#64748b" fontSize={10}>{d.month}</text>;
+        })}
         {/* 面積 */}
         <path d={area} fill="url(#ag)"/>
         {/* 折線 */}
@@ -417,7 +422,7 @@ function App() {
                   <PieChart data={pie}/>
                 </div>
                 <div style={{...box,flex:1,minWidth:240,padding:24}}>
-                  <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>各標的 XIRR & 匯率</div>
+                  <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>各標的匯率參考</div>
                   {hs.map(h=>(
                     <div key={h.ticker} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1e293b"}}>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -425,8 +430,9 @@ function App() {
                         <Badge market={h.market}/>
                       </div>
                       <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:11,color:"#64748b"}}>{h.currency!=="TWD"?`1 ${h.currency} = ${fmt(h.fxRate,4)} TWD`:"台幣計價"}</div>
-                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:700,color:h.xirr>=0?"#22c55e":"#ef4444"}}>XIRR {h.xirr>=0?"+":""}{h.xirr.toFixed(2)}%</div>
+                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:h.currency!=="TWD"?"#94a3b8":"#64748b"}}>
+                          {h.currency!=="TWD"?`1 ${h.currency} = ${fmt(h.fxRate,4)} TWD`:"台幣計價"}
+                        </div>
                       </div>
                     </div>
                   ))}
