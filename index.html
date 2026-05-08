@@ -126,7 +126,8 @@ tr:nth-child(even) td{background:rgba(255,255,255,0.012)}
 
 <!-- ── Non-passive tab logic ───────────────────────────────── -->
 <script>
-const SHEET_ID = '1IKi0HiVDa8UmPwEgU9zQ5RJ78UwPWZJFtwMkABTJKfs';
+const SHEET_ID      = '1IKi0HiVDa8UmPwEgU9zQ5RJ78UwPWZJFtwMkABTJKfs';
+const COLL_SHEET_ID = '1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg';
 const SHEETS = { active:'主動投資', cf:'現金流', coll:'collectibles', collSeries:'collectibles_series' };
 
 const fmt = {
@@ -138,9 +139,9 @@ const fmt = {
 const cls = v => v==null||isNaN(v) ? 'mn' : v>0 ? 'pos' : v<0 ? 'neg' : 'mn';
 
 const cache = {};
-async function fetchSheet(name) {
+async function fetchSheet(name, sid = SHEET_ID) {
   if (cache[name]) return cache[name];
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
+  const url = `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
   const res = await fetch(url);
   const text = await res.text();
   const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, ''));
@@ -189,7 +190,12 @@ function onRefresh() {
   btn.classList.add('loading'); spin.style.display = 'inline-block';
   Object.keys(cache).forEach(k => delete cache[k]);
   showStatus('正在從 Google Sheets 讀取資料...');
-  Promise.all(Object.values(SHEETS).map(fetchSheet))
+  Promise.all([
+    fetchSheet(SHEETS.active),
+    fetchSheet(SHEETS.cf),
+    fetchSheet(SHEETS.coll,       COLL_SHEET_ID),
+    fetchSheet(SHEETS.collSeries, COLL_SHEET_ID),
+  ])
     .then(() => {
       hideStatus();
       document.getElementById('sync-time').textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
@@ -471,7 +477,14 @@ function renderColl() {
 
 // Pre-load other sheets in background
 (async () => {
-  try { await Promise.all(Object.values(SHEETS).map(fetchSheet)); } catch(e) {}
+  try {
+    await Promise.all([
+      fetchSheet(SHEETS.active),
+      fetchSheet(SHEETS.cf),
+      fetchSheet(SHEETS.coll,       COLL_SHEET_ID),
+      fetchSheet(SHEETS.collSeries, COLL_SHEET_ID),
+    ]);
+  } catch(e) {}
 })();
 </script>
 
