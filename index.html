@@ -324,63 +324,122 @@ function renderCF() {
 }
 
 // ── 收藏 ──────────────────────────────────────────────────────
+// 欄位：[0]品項名稱 [1]主類別 [2]子類別 [3]系列名稱 [4]系列目標數
+//       [5]狀態 [6]入手日 [7]取得方式 [8]難度 [9]心得
+const CAT_COLORS = { '棒球周邊':'#3b82f6', '公仔玩具':'#ec4899', '追星':'#a855f7' };
+const COLL_STATUS = {
+  '展示中':   { color:'#22c55e', bg:'rgba(34,197,94,0.12)' },
+  '收納中':   { color:'#3b82f6', bg:'rgba(59,130,246,0.12)' },
+  '願望清單': { color:'#f59e0b', bg:'rgba(245,158,11,0.12)' },
+  '尋找中':   { color:'#a855f7', bg:'rgba(168,85,247,0.12)' },
+  '已轉讓':   { color:'#64748b', bg:'rgba(100,116,139,0.12)' },
+};
+const RARITY_ICON = { '難找':'⭐', '夢幻逸品':'⭐⭐' };
+
+let collCatFilter = 'all';
+
+function pillStyle(active, color) {
+  return `background:${active ? color+'22' : 'transparent'};color:${active ? color : '#64748b'};border:1px solid ${active ? color+'66' : '#334155'};border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s`;
+}
+
+function filterColl(cat) {
+  collCatFilter = cat;
+  renderColl();
+}
+
 function renderColl() {
   const rows = cache[SHEETS.coll] || [];
   if (!rows.length) { document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> 載入中...</div>'; return; }
   const data = rows.slice(3).filter(r => r[0]);
-  const totalCost = data.reduce((s,r)=>s+(parseFloat(r[3])||0),0);
-  const totalVal  = data.reduce((s,r)=>s+(parseFloat(r[4])||0),0);
-  const totalGain = totalVal - totalCost;
-  const catMap = {};
-  data.forEach(r => { const c=r[1]||'其他'; catMap[c]=(catMap[c]||0)+(parseFloat(r[3])||0); });
 
-  const tableRows = data.map(r => {
-    const gain = parseFloat(r[5]);
+  const owned     = data.filter(r => r[5] !== '願望清單' && r[5] !== '已轉讓');
+  const displaying = data.filter(r => r[5] === '展示中');
+  const wishlist  = data.filter(r => r[5] === '願望清單');
+
+  // 系列完整度（以全資料計算，不受分類篩選影響）
+  const seriesMap = {};
+  data.forEach(r => {
+    const s = r[3]; if (!s) return;
+    if (!seriesMap[s]) seriesMap[s] = { cat: r[1]||'', owned: 0, target: parseInt(r[4])||0 };
+    if (r[5] !== '願望清單' && r[5] !== '已轉讓') seriesMap[s].owned++;
+  });
+  const allSeries = Object.entries(seriesMap).filter(([,v]) => v.target > 0);
+
+  // 分類件數
+  const catCounts = {};
+  data.forEach(r => { const c = r[1]||'其他'; catCounts[c] = (catCounts[c]||0) + 1; });
+
+  // 套用分類篩選
+  const filtered = collCatFilter === 'all' ? data : data.filter(r => r[1] === collCatFilter);
+  const filteredSeries = collCatFilter === 'all' ? allSeries : allSeries.filter(([,v]) => v.cat === collCatFilter);
+
+  // 分類篩選按鈕
+  const CATS = ['棒球周邊', '公仔玩具', '追星'];
+  const filterPills = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+    <button onclick="filterColl('all')" style="${pillStyle(collCatFilter==='all','#94a3b8')}">全部 ${data.length}</button>
+    ${CATS.map(c => `<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c, CAT_COLORS[c]||'#94a3b8')}">${c} ${catCounts[c]||0}</button>`).join('')}
+  </div>`;
+
+  // 系列完整度
+  const seriesHtml = filteredSeries.length ? `
+    <div class="card">
+      <div class="card-hd"><span class="card-t">系列完整度</span></div>
+      ${filteredSeries.map(([name, s]) => {
+        const pct = s.target > 0 ? Math.min(s.owned / s.target, 1) : 0;
+        const color = CAT_COLORS[s.cat] || '#94a3b8';
+        const done = s.owned >= s.target;
+        return `<div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:13px;color:#e2e8f0;font-weight:500">${name}</span>
+              <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${color}22;color:${color};border:1px solid ${color}44;font-weight:700">${s.cat}</span>
+            </div>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:${done?'#22c55e':'#94a3b8'}">${done?'✓ ':''}${s.owned} / ${s.target}</span>
+          </div>
+          <div style="height:5px;background:#1e293b;border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${(pct*100).toFixed(1)}%;background:${done?'#22c55e':color};border-radius:3px;transition:width .3s"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  // 品項列表
+  const tableRows = filtered.map(r => {
+    const st = r[5] || '';
+    const stStyle = COLL_STATUS[st] || { color:'#64748b', bg:'rgba(100,116,139,0.12)' };
+    const catColor = CAT_COLORS[r[1]] || '#94a3b8';
+    const rarityIcon = RARITY_ICON[r[8]] || '';
     return `<tr>
-      <td style="max-width:200px">${r[0]}</td>
-      <td><span class="badge">${r[1]||''}</span></td>
-      <td style="font-size:11px;color:var(--text3)">${fmt.d(r[2])}</td>
-      <td class="mn">${fmt.n(parseFloat(r[3]))}</td>
-      <td class="mn">${fmt.n(parseFloat(r[4]))}</td>
-      <td class="${cls(gain)}">${fmt.n(gain)}</td>
-      <td style="font-size:11px;color:var(--text3);max-width:150px">${r[6]||''}</td>
+      <td>
+        <div style="font-weight:500;color:#e2e8f0">${r[0]}${rarityIcon ? ` <span title="${r[8]||''}">${rarityIcon}</span>` : ''}</div>
+        ${r[9] ? `<div style="font-size:11px;color:#64748b;margin-top:3px">${r[9]}</div>` : ''}
+      </td>
+      <td><span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[1]||''}</span></td>
+      <td style="color:#94a3b8;font-size:12px">${r[2]||''}</td>
+      <td style="color:#64748b;font-size:12px">${r[3]||''}</td>
+      <td><span style="font-size:11px;padding:2px 8px;border-radius:5px;background:${stStyle.bg};color:${stStyle.color};font-weight:500">${st}</span></td>
+      <td style="font-size:11px;color:#64748b">${fmt.d(r[6])}</td>
+      <td style="font-size:11px;color:#64748b">${r[7]||''}</td>
     </tr>`;
   }).join('');
 
-  const COLORS = ['#22c55e','#3b82f6','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899'];
   document.getElementById('content').innerHTML = `
     <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-l">總件數</div><div class="kpi-v kv-def">${data.length} 件</div></div>
-      <div class="kpi"><div class="kpi-l">總入手成本</div><div class="kpi-v kv-def">${fmt.n(totalCost)}</div></div>
-      <div class="kpi"><div class="kpi-l">目前估值</div><div class="kpi-v kv-def">${fmt.n(totalVal)}</div></div>
-      <div class="kpi"><div class="kpi-l">估值損益</div><div class="kpi-v ${totalGain>=0?'kv-pos':'kv-neg'}">${fmt.n(totalGain)}</div></div>
+      <div class="kpi"><div class="kpi-l">已入手</div><div class="kpi-v kv-def">${owned.length} 件</div></div>
+      <div class="kpi"><div class="kpi-l">展示中</div><div class="kpi-v" style="color:#22c55e">${displaying.length} 件</div></div>
+      <div class="kpi"><div class="kpi-l">願望清單</div><div class="kpi-v" style="color:#f59e0b">${wishlist.length} 件</div></div>
+      <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeries.length} 個</div></div>
     </div>
-    ${Object.keys(catMap).length ? `<div class="card">
-      <div class="card-hd"><span class="card-t">分類成本分布</span></div>
-      <div class="chart-wrap"><canvas id="coll-pie"></canvas></div>
-    </div>` : ''}
+    ${filterPills}
+    ${seriesHtml}
     <div class="card">
-      <div class="card-hd"><span class="card-t">收藏清單</span></div>
-      ${data.length ? `<div class="tbl-wrap"><table>
-        <thead><tr><th style="text-align:left">名稱</th><th>分類</th><th>入手日</th><th>成本</th><th>估值</th><th>損益</th><th>備註</th></tr></thead>
+      <div class="card-hd"><span class="card-t">收藏清單</span><span style="font-size:11px;color:#64748b">${filtered.length} 件</span></div>
+      ${filtered.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th style="text-align:left">品項</th><th>主類</th><th>子類</th><th>系列</th><th>狀態</th><th>入手日</th><th>取得方式</th></tr></thead>
         <tbody>${tableRows}</tbody>
-      </table></div>` : '<div class="empty">試算表中尚無資料</div>'}
-    </div>`;
-
-  const catEntries = Object.entries(catMap);
-  if (catEntries.length) {
-    charts.collPie = new Chart(document.getElementById('coll-pie'), {
-      type: 'doughnut',
-      data: {
-        labels: catEntries.map(([k])=>k),
-        datasets:[{ data:catEntries.map(([,v])=>v), backgroundColor:COLORS.slice(0,catEntries.length), borderWidth:2, borderColor:'rgba(0,0,0,0.2)' }]
-      },
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ position:'right', labels:{ color:'#94a3b8', font:{size:11}, boxWidth:10, padding:8 } } }
-      }
-    });
-  }
+      </table></div>` : '<div class="empty">此分類尚無收藏</div>'}
+    </div>
+    <div class="note">💡 Sheets 欄位順序：品項名稱、主類別（棒球周邊／公仔玩具／追星）、子類別、系列名稱、系列目標數、狀態（展示中／收納中／願望清單／尋找中／已轉讓）、入手日、取得方式、難度（難找／夢幻逸品）、心得</div>`;
 }
 
 // Pre-load other sheets in background
