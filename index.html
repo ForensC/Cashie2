@@ -371,12 +371,16 @@ let collCatFilter = 'all';
 let collSearch    = '';
 let _collData     = [];
 let _collSeries   = {};
+let _collIme      = false;  // IME 組字中標記，避免中文輸入時即時觸發搜尋
 
 function pillStyle(active, color) {
   return `background:${active?color+'22':'transparent'};color:${active?color:'#64748b'};border:1px solid ${active?color+'55':'#334155'};border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s`;
 }
 function filterColl(cat) { collCatFilter = cat; renderColl(); }
 function searchColl(v)   { collSearch = v;      renderColl(); }
+function onCollInput(el) { if (!_collIme) searchColl(el.value); }
+function onCollImeStart() { _collIme = true; }
+function onCollImeEnd(el) { _collIme = false; searchColl(el.value); }
 function isSold(v)       { return v===true || String(v).toUpperCase()==='TRUE'; }
 function isWishlist(v)   { return v===true || String(v).toUpperCase()==='TRUE'; }
 
@@ -447,13 +451,7 @@ function renderColl() {
   const soldItems     = data.filter(r => !isWishlist(r[12]) && isSold(r[7]));
   const owned         = data.filter(r => !isWishlist(r[12]) && !isSold(r[7]));
 
-  // 系列持有數
-  const seriesOwned = {};
-  owned.forEach(r => {
-    const sid = String(r[6]||''); if (!sid) return;
-    seriesOwned[sid] = (seriesOwned[sid]||0) + 1;
-  });
-  // 包含所有有定義的系列（total=0 表示不追完整度，只歸組）
+  // 統計有完整度追蹤的系列數（用於 KPI）
   const allSeriesEntries = Object.entries(_collSeries);
 
   // 分類
@@ -473,10 +471,6 @@ function renderColl() {
           || ipName.includes(q);                    // IP / 官方系列名稱
     });
   }
-
-  const filteredSeries = collCatFilter==='all'
-    ? allSeriesEntries
-    : allSeriesEntries.filter(([,v])=>v.mainCat===collCatFilter);
 
   // 卡片產生器（item_type 已在收藏櫃標題顯示，卡片上只留主分類）
   function makeCollCard(r) {
@@ -528,41 +522,6 @@ function renderColl() {
       }).join('')
     : `<div class="empty">${collSearch?'找不到符合的收藏':'此分類尚無收藏'}</div>`;
 
-  // 系列 / 歸組
-  const trackedSeries  = filteredSeries.filter(([,v])=>v.total>0); // 有追完整度
-  const groupedSeries  = filteredSeries.filter(([sid,v])=>v.total===0 && (seriesOwned[sid]||0)>0); // 純歸組
-
-  const seriesHtml = filteredSeries.length ? `
-    <div class="card">
-      <div class="card-hd"><span class="card-t">系列 / 歸組</span></div>
-      ${trackedSeries.map(([sid,s])=>{
-        const cnt=seriesOwned[sid]||0, pct=Math.min(cnt/s.total,1);
-        const color=CAT_COLORS[s.mainCat]||'#94a3b8', done=cnt>=s.total;
-        return `<div style="margin-bottom:14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:13px;color:#e2e8f0;font-weight:500">${s.name}</span>
-              <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:${color}22;color:${color};border:1px solid ${color}44;font-weight:700">${s.mainCat}</span>
-            </div>
-            <span style="font-family:'DM Mono',monospace;font-size:12px;color:${done?'#22c55e':'#94a3b8'}">${done?'✓ ':''}${cnt} / ${s.total}</span>
-          </div>
-          <div style="height:4px;background:#1e293b;border-radius:2px;overflow:hidden">
-            <div style="height:100%;width:${(pct*100).toFixed(1)}%;background:${done?'#22c55e':color};border-radius:2px;transition:width .4s"></div>
-          </div>
-        </div>`;
-      }).join('')}
-      ${groupedSeries.length ? `
-        <div style="display:flex;flex-wrap:wrap;gap:8px;${trackedSeries.length?'margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.05)':''}">
-          ${groupedSeries.map(([sid,s])=>{
-            const cnt=seriesOwned[sid]||0, color=CAT_COLORS[s.mainCat]||'#94a3b8';
-            return `<div style="display:flex;align-items:center;gap:8px;background:${color}0d;border:1px solid ${color}22;border-radius:8px;padding:7px 12px">
-              <span style="font-size:13px;color:#e2e8f0;font-weight:500">${s.name}</span>
-              <span style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b">${cnt} 件</span>
-            </div>`;
-          }).join('')}
-        </div>` : ''}
-    </div>` : '';
-
   // 願望清單
   const wishHtml = wishlistItems.length ? `
     <div class="card" style="border-color:rgba(245,158,11,0.2)">
@@ -604,12 +563,15 @@ function renderColl() {
       <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeriesEntries.filter(([,v])=>v.total>0).length} 個</div></div>
       <div class="kpi"><div class="kpi-l">已出售</div><div class="kpi-v" style="color:#334155">${soldItems.length} 件</div></div>
     </div>
-    <input class="coll-search" placeholder="搜尋名稱、IP / 系列、物品型態、備註…" oninput="searchColl(this.value)" value="${collSearch}">
+    <input class="coll-search" placeholder="搜尋名稱、IP / 系列、物品型態、備註…"
+      oninput="onCollInput(this)"
+      oncompositionstart="onCollImeStart()"
+      oncompositionend="onCollImeEnd(this)"
+      value="${collSearch}">
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
       <button onclick="filterColl('all')" style="${pillStyle(collCatFilter==='all','#94a3b8')}">全部 ${owned.length}</button>
       ${cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('')}
     </div>
-    ${seriesHtml}
     ${cabinetHtml}
     ${wishHtml}
     ${soldHtml}`;
