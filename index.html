@@ -355,7 +355,7 @@ function renderCF() {
 // ── 收藏 ──────────────────────────────────────────────────────
 // collectibles 欄：id[0] date[1] amount[2] name[3] main_category[4]
 //   item_type[5] series_id[6] sold[7] sold_amount[8] note[9]
-//   image_url[10] acquired_from[11] wishlist[12] tags[13]
+//   image_url[10] acquired_from[11] wishlist[12] tags[13] tag_note[14]
 // collectibles_series 欄：id[0] main_category[1] series_name[2] total_count[3]
 //   （total_count 留空/0 = 純 IP 歸組；有值 = 追蹤完整度）
 
@@ -455,8 +455,16 @@ function showCollPanel(id) {
   }
 
   const otherTagsHtml = otherT.length
-    ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">'
+    ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:' + (r[14] ? '8' : '14') + 'px">'
       + otherT.map(t => '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1)">' + t + '</span>').join('')
+      + '</div>'
+    : '';
+
+  // tag_note：tag 相關補充紀錄（如簽名日期、場合）
+  const tagNoteHtml = r[14]
+    ? '<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:8px;margin-bottom:14px">'
+      + '<span style="font-size:14px;flex-shrink:0;margin-top:1px">✍</span>'
+      + '<span style="font-size:12px;color:#fcd34d;line-height:1.6">' + r[14] + '</span>'
       + '</div>'
     : '';
 
@@ -503,6 +511,7 @@ function showCollPanel(id) {
     +   '</div>'
     +   '<div style="font-size:16px;font-weight:700;color:#f1f5f9;line-height:1.4;margin-bottom:10px">' + (r[3]||'') + '</div>'
     +   otherTagsHtml
+    +   tagNoteHtml
     +   detailsHtml
     +   noteHtml
     + '</div>';
