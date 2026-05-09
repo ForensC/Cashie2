@@ -376,8 +376,8 @@ let _collIme      = false;  // IME 組字中標記，避免中文輸入時即時
 function pillStyle(active, color) {
   return `background:${active?color+'22':'transparent'};color:${active?color:'#64748b'};border:1px solid ${active?color+'55':'#334155'};border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s`;
 }
-function filterColl(cat) { collCatFilter = cat; renderColl(); }
-function searchColl(v)   { collSearch = v;      renderColl(); }
+function filterColl(cat) { collCatFilter = cat; renderCollBody(); }
+function searchColl(v)   { collSearch = v;      renderCollBody(); }
 function onCollInput(el) { if (!_collIme) searchColl(el.value); }
 function onCollImeStart() { _collIme = true; }
 function onCollImeEnd(el) { _collIme = false; searchColl(el.value); }
@@ -431,33 +431,82 @@ function hideCollModal() {
   m.style.display = 'none'; m.innerHTML = '';
 }
 
+// 卡片產生器（模組級，renderCollBody 呼叫）
+function makeCollCard(r) {
+  const imgUrl   = driveImg(r[10]||'');
+  const catColor = CAT_COLORS[r[4]] || '#94a3b8';
+  const emoji    = CAT_EMOJI[r[4]] || '📦';
+  return `<div class="coll-card" onclick="showCollModal('${r[0]}')">
+    <div class="coll-img">
+      ${imgUrl
+        ? `<img src="${imgUrl}" alt="${r[3]||''}" loading="lazy">`
+        : `<span style="font-size:44px;opacity:.35">${emoji}</span>`}
+    </div>
+    <div class="coll-body">
+      <div style="margin-bottom:5px">
+        <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[4]||''}</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:#e2e8f0;line-height:1.35;margin-bottom:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${r[3]||''}</div>
+      <div style="font-size:11px;color:#334155;font-family:'DM Mono',monospace">${fmt.d(r[1])}</div>
+    </div>
+  </div>`;
+}
+
+// 完整初始化（切換到收藏 tab 時呼叫）：建立 shell，搜尋框只建立一次
 function renderColl() {
   const rows  = cache[SHEETS.coll] || [];
   const sRows = cache[SHEETS.collSeries] || [];
-  if (!rows.length) { document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> 載入中...</div>'; return; }
+  if (!rows.length) {
+    document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> 載入中...</div>';
+    return;
+  }
 
-  const data = rows.filter(r => r[0] != null && r[0] !== '');
-  _collData = data;
-
-  // 系列定義
+  _collData = rows.filter(r => r[0] != null && r[0] !== '');
   _collSeries = {};
   sRows.filter(r => r[0]).forEach(r => {
-    // 新格式：id[0] main_category[1] series_name[2] total_count[3]
     _collSeries[String(r[0])] = { mainCat:r[1]||'', name:r[2]||'', total:parseInt(r[3])||0 };
   });
 
-  // 分類
-  const wishlistItems = data.filter(r => isWishlist(r[12]));
-  const soldItems     = data.filter(r => !isWishlist(r[12]) && isSold(r[7]));
-  const owned         = data.filter(r => !isWishlist(r[12]) && !isSold(r[7]));
+  // 建立固定 shell（搜尋框只在這裡建一次，不會被重建）
+  document.getElementById('content').innerHTML = `
+    <div id="coll-kpi" class="kpi-grid"></div>
+    <input id="coll-search-input" class="coll-search"
+      placeholder="搜尋名稱、IP / 系列、物品型態、備註…"
+      oninput="onCollInput(this)"
+      oncompositionstart="onCollImeStart()"
+      oncompositionend="onCollImeEnd(this)"
+      value="${collSearch}">
+    <div id="coll-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
+    <div id="coll-body"></div>`;
 
-  // 統計有完整度追蹤的系列數（用於 KPI）
+  renderCollBody();
+}
+
+// 只更新 KPI / 篩選 pills / 卡片區（搜尋、篩選時呼叫，搜尋框不會被碰）
+function renderCollBody() {
+  if (!_collData.length) return;
+
   const allSeriesEntries = Object.entries(_collSeries);
+  const wishlistItems = _collData.filter(r => isWishlist(r[12]));
+  const soldItems     = _collData.filter(r => !isWishlist(r[12]) && isSold(r[7]));
+  const owned         = _collData.filter(r => !isWishlist(r[12]) && !isSold(r[7]));
 
-  // 分類
+  // KPI
+  const kpiEl = document.getElementById('coll-kpi');
+  if (kpiEl) kpiEl.innerHTML = `
+    <div class="kpi"><div class="kpi-l">持有中</div><div class="kpi-v kv-def">${owned.length} 件</div></div>
+    <div class="kpi"><div class="kpi-l">願望清單</div><div class="kpi-v" style="color:#f59e0b">${wishlistItems.length} 件</div></div>
+    <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeriesEntries.filter(([,v])=>v.total>0).length} 個</div></div>
+    <div class="kpi"><div class="kpi-l">已出售</div><div class="kpi-v" style="color:#334155">${soldItems.length} 件</div></div>`;
+
+  // 篩選 pills
   const cats = [...new Set(owned.map(r=>r[4]).filter(Boolean))];
   const catCounts = {};
   owned.forEach(r => { const c=r[4]||'其他'; catCounts[c]=(catCounts[c]||0)+1; });
+  const pillsEl = document.getElementById('coll-pills');
+  if (pillsEl) pillsEl.innerHTML = `
+    <button onclick="filterColl('all')" style="${pillStyle(collCatFilter==='all','#94a3b8')}">全部 ${owned.length}</button>
+    ${cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('')}`;
 
   // 篩選 + 搜尋
   let filtered = collCatFilter==='all' ? owned : owned.filter(r=>r[4]===collCatFilter);
@@ -465,52 +514,21 @@ function renderColl() {
     const q = collSearch.toLowerCase();
     filtered = filtered.filter(r => {
       const ipName = (_collSeries[String(r[6]||'')]?.name || '').toLowerCase();
-      return (r[3]||'').toLowerCase().includes(q)   // 品項名稱
-          || (r[5]||'').toLowerCase().includes(q)   // 物品型態
-          || (r[9]||'').toLowerCase().includes(q)   // 備註
-          || ipName.includes(q);                    // IP / 官方系列名稱
+      return (r[3]||'').toLowerCase().includes(q)
+          || (r[5]||'').toLowerCase().includes(q)
+          || (r[9]||'').toLowerCase().includes(q)
+          || ipName.includes(q);
     });
-  }
-
-  // 卡片產生器（item_type 已在收藏櫃標題顯示，卡片上只留主分類）
-  function makeCollCard(r) {
-    const imgUrl   = driveImg(r[10]||'');
-    const catColor = CAT_COLORS[r[4]] || '#94a3b8';
-    const emoji    = CAT_EMOJI[r[4]] || '📦';
-    return `<div class="coll-card" onclick="showCollModal('${r[0]}')">
-      <div class="coll-img">
-        ${imgUrl
-          ? `<img src="${imgUrl}" alt="${r[3]||''}" loading="lazy">`
-          : `<span style="font-size:44px;opacity:.35">${emoji}</span>`}
-      </div>
-      <div class="coll-body">
-        <div style="margin-bottom:5px">
-          <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[4]||''}</span>
-        </div>
-        <div style="font-size:13px;font-weight:600;color:#e2e8f0;line-height:1.35;margin-bottom:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${r[3]||''}</div>
-        <div style="font-size:11px;color:#334155;font-family:'DM Mono',monospace">${fmt.d(r[1])}</div>
-      </div>
-    </div>`;
   }
 
   // 依 item_type 分組 → 收藏櫃
   const typeMap = {};
-  filtered.forEach(r => {
-    const t = r[5] || '';
-    if (!typeMap[t]) typeMap[t] = [];
-    typeMap[t].push(r);
-  });
-  // 有命名的型態排前面，空字串（未分類）排最後
-  const sortedTypes = Object.keys(typeMap).sort((a,b) => {
-    if (!a) return 1; if (!b) return -1;
-    return a.localeCompare(b, 'zh-TW');
-  });
+  filtered.forEach(r => { const t=r[5]||''; if(!typeMap[t]) typeMap[t]=[]; typeMap[t].push(r); });
+  const sortedTypes = Object.keys(typeMap).sort((a,b)=>{ if(!a) return 1; if(!b) return -1; return a.localeCompare(b,'zh-TW'); });
 
   const cabinetHtml = filtered.length
     ? sortedTypes.map(type => {
-        const items  = typeMap[type];
-        const label  = type || '未分類';
-        const isNamed = !!type;
+        const items=typeMap[type], label=type||'未分類', isNamed=!!type;
         return `<div style="margin-bottom:32px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
             <span style="font-size:13px;font-weight:700;color:${isNamed?'#cbd5e1':'#475569'};letter-spacing:.03em">${label}</span>
@@ -537,7 +555,7 @@ function renderColl() {
               <span style="font-size:44px;opacity:.3">${emoji}</span>
             </div>
             <div class="coll-body">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+              <div style="margin-bottom:5px">
                 <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[4]||''}</span>
               </div>
               <div style="font-size:13px;font-weight:600;color:#94a3b8;line-height:1.35">${r[3]||''}</div>
@@ -556,25 +574,8 @@ function renderColl() {
       </div>
     </details>` : '';
 
-  document.getElementById('content').innerHTML = `
-    <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-l">持有中</div><div class="kpi-v kv-def">${owned.length} 件</div></div>
-      <div class="kpi"><div class="kpi-l">願望清單</div><div class="kpi-v" style="color:#f59e0b">${wishlistItems.length} 件</div></div>
-      <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeriesEntries.filter(([,v])=>v.total>0).length} 個</div></div>
-      <div class="kpi"><div class="kpi-l">已出售</div><div class="kpi-v" style="color:#334155">${soldItems.length} 件</div></div>
-    </div>
-    <input class="coll-search" placeholder="搜尋名稱、IP / 系列、物品型態、備註…"
-      oninput="onCollInput(this)"
-      oncompositionstart="onCollImeStart()"
-      oncompositionend="onCollImeEnd(this)"
-      value="${collSearch}">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
-      <button onclick="filterColl('all')" style="${pillStyle(collCatFilter==='all','#94a3b8')}">全部 ${owned.length}</button>
-      ${cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('')}
-    </div>
-    ${cabinetHtml}
-    ${wishHtml}
-    ${soldHtml}`;
+  const bodyEl = document.getElementById('coll-body');
+  if (bodyEl) bodyEl.innerHTML = cabinetHtml + wishHtml + soldHtml;
 }
 
 // Pre-load other sheets in background
