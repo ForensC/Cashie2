@@ -355,9 +355,31 @@ function renderCF() {
 // ── 收藏 ──────────────────────────────────────────────────────
 // collectibles 欄：id[0] date[1] amount[2] name[3] main_category[4]
 //   item_type[5] series_id[6] sold[7] sold_amount[8] note[9]
-//   image_url[10] acquired_from[11] wishlist[12]
+//   image_url[10] acquired_from[11] wishlist[12] tags[13]
 // collectibles_series 欄：id[0] main_category[1] series_name[2] total_count[3]
 //   （total_count 留空/0 = 純 IP 歸組；有值 = 追蹤完整度）
+
+// 等級標籤（自動偵測，給予特殊顏色）
+const GRADE_ORDER = ['SSS','SS','S','A','B','C'];
+const GRADE_STYLE = {
+  'SSS': { bg:'#f59e0b', text:'#000', shadow:'0 0 10px rgba(245,158,11,0.6)' },
+  'SS':  { bg:'#e2e8f0', text:'#0f172a', shadow:'0 0 8px rgba(226,232,240,0.4)' },
+  'S':   { bg:'#f97316', text:'#fff',    shadow:'0 0 8px rgba(249,115,22,0.5)' },
+  'A':   { bg:'#3b82f6', text:'#fff',    shadow:'' },
+  'B':   { bg:'#475569', text:'#fff',    shadow:'' },
+  'C':   { bg:'#334155', text:'#94a3b8', shadow:'' },
+};
+
+function parseTags(v) {
+  if (!v) return [];
+  return String(v).split(',').map(t => t.trim()).filter(Boolean);
+}
+function getGradeTag(tags) {
+  return tags.find(t => GRADE_ORDER.includes(t.toUpperCase())) || null;
+}
+function getNonGradeTags(tags) {
+  return tags.filter(t => !GRADE_ORDER.includes(t.toUpperCase()));
+}
 
 // 主分類同時支援新名稱（棒球/公仔）與舊名稱（棒球周邊/公仔玩具）以向下相容
 const CAT_COLORS = {
@@ -421,6 +443,10 @@ function showCollPanel(id) {
   const series   = _collSeries[String(r[6]||'')];
 
   // 詳情列（字串拼接，不用 template literal）
+  const tags     = parseTags(r[13]);
+  const grade    = getGradeTag(tags);
+  const otherT   = getNonGradeTags(tags);
+
   const detailDefs = [
     series && ['IP / 系列', series.name],
     r[5]   && ['物品型態',  r[5]],
@@ -457,11 +483,13 @@ function showCollPanel(id) {
     + imgHtml
     // 內容
     + '<div style="padding:16px">'
-    +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+    +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
     +     '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;font-weight:700">' + (r[4]||'') + '</span>'
     +     (r[5] ? '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,0.06);color:#64748b;border:1px solid rgba(255,255,255,0.08)">' + r[5] + '</span>' : '')
+    +     (grade ? (function(){ const gs=GRADE_STYLE[grade.toUpperCase()]; return '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + gs.bg + ';color:' + gs.text + ';font-weight:800;box-shadow:' + gs.shadow + '">' + grade.toUpperCase() + '</span>'; })() : '')
     +   '</div>'
-    +   '<div style="font-size:16px;font-weight:700;color:#f1f5f9;line-height:1.4;margin-bottom:16px">' + (r[3]||'') + '</div>'
+    +   '<div style="font-size:16px;font-weight:700;color:#f1f5f9;line-height:1.4;margin-bottom:10px">' + (r[3]||'') + '</div>'
+    +   (otherT.length ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">' + otherT.map(t => '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1)">' + t + '</span>').join('') + '</div>' : '')
     +   detailsHtml
     +   noteHtml
     + '</div>';
@@ -485,20 +513,41 @@ function makeCollCard(r) {
   const imgUrl   = driveImg(r[10]||'');
   const catColor = CAT_COLORS[r[4]] || '#94a3b8';
   const emoji    = CAT_EMOJI[r[4]] || '📦';
-  return `<div id="cc-${r[0]}" class="coll-card${_collSelectedId===String(r[0])?' selected':''}" onclick="showCollPanel('${r[0]}')">
-    <div class="coll-img">
-      ${imgUrl
-        ? `<img src="${imgUrl}" alt="${r[3]||''}" loading="lazy">`
-        : `<span style="font-size:44px;opacity:.35">${emoji}</span>`}
-    </div>
-    <div class="coll-body">
-      <div style="margin-bottom:5px">
-        <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[4]||''}</span>
-      </div>
-      <div style="font-size:13px;font-weight:600;color:#e2e8f0;line-height:1.35;margin-bottom:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${r[3]||''}</div>
-      <div style="font-size:11px;color:#334155;font-family:'DM Mono',monospace">${fmt.d(r[1])}</div>
-    </div>
-  </div>`;
+  const tags     = parseTags(r[13]);
+  const grade    = getGradeTag(tags);
+  const gs       = grade ? GRADE_STYLE[grade.toUpperCase()] : null;
+  const otherT   = getNonGradeTags(tags);
+
+  // 等級角標（圖片右上角）
+  const gradeBadge = gs
+    ? '<div style="position:absolute;top:8px;right:8px;background:' + gs.bg + ';color:' + gs.text
+      + ';font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.05em;box-shadow:' + gs.shadow + ';z-index:1">'
+      + grade.toUpperCase() + '</div>'
+    : '';
+
+  // 其他標籤 pills（卡片底部）
+  const tagPills = otherT.length
+    ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">'
+      + otherT.map(t => '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.06);color:#64748b;border:1px solid rgba(255,255,255,0.08)">' + t + '</span>').join('')
+      + '</div>'
+    : '';
+
+  const imgArea = imgUrl
+    ? '<img src="' + imgUrl + '" alt="" loading="lazy">'
+    : '<span style="font-size:44px;opacity:.35">' + emoji + '</span>';
+
+  return '<div id="cc-' + r[0] + '" class="coll-card' + (_collSelectedId === String(r[0]) ? ' selected' : '') + '" onclick="showCollPanel(\'' + r[0] + '\')">'
+    + '<div class="coll-img" style="position:relative">'
+    +   gradeBadge
+    +   imgArea
+    + '</div>'
+    + '<div class="coll-body">'
+    +   '<div style="margin-bottom:5px"><span style="font-size:9px;padding:2px 6px;border-radius:3px;background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;font-weight:700">' + (r[4]||'') + '</span></div>'
+    +   '<div style="font-size:13px;font-weight:600;color:#e2e8f0;line-height:1.35;margin-bottom:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">' + (r[3]||'') + '</div>'
+    +   '<div style="font-size:11px;color:#334155;font-family:\'DM Mono\',monospace">' + fmt.d(r[1]) + '</div>'
+    +   tagPills
+    + '</div>'
+    + '</div>';
 }
 
 // 完整初始化（切換到收藏 tab 時呼叫）：建立 shell，搜尋框只建立一次
@@ -645,10 +694,12 @@ function renderCollBody() {
     const q = collSearch.toLowerCase();
     filtered = filtered.filter(r => {
       const ipName = (_collSeries[String(r[6]||'')]?.name || '').toLowerCase();
+      const tagStr = parseTags(r[13]).join(' ').toLowerCase();
       return (r[3]||'').toLowerCase().includes(q)
           || (r[5]||'').toLowerCase().includes(q)
           || (r[9]||'').toLowerCase().includes(q)
-          || ipName.includes(q);
+          || ipName.includes(q)
+          || tagStr.includes(q);
     });
   }
 
