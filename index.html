@@ -499,23 +499,83 @@ function renderCollBody() {
   const soldItems     = _collData.filter(r => !isWishlist(r[12]) && isSold(r[7]));
   const owned         = _collData.filter(r => !isWishlist(r[12]) && !isSold(r[7]));
 
-  // KPI
-  const kpiEl = document.getElementById('coll-kpi');
-  if (kpiEl) kpiEl.innerHTML = `
-    <div class="kpi"><div class="kpi-l">持有中</div><div class="kpi-v kv-def">${owned.length} 件</div></div>
-    <div class="kpi"><div class="kpi-l">願望清單</div><div class="kpi-v" style="color:#f59e0b">${wishlistItems.length} 件</div></div>
-    <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeriesEntries.filter(([,v])=>v.total>0).length} 個</div></div>
-    <div class="kpi"><div class="kpi-l">已出售</div><div class="kpi-v" style="color:#334155">${soldItems.length} 件</div></div>`;
-
-  // 篩選 pills
+  // 先算分類（KPI donut 需要用到）
   const cats = [...new Set(owned.map(r=>r[4]).filter(Boolean))];
   const catCounts = {};
   owned.forEach(r => { const c=r[4]||'其他'; catCounts[c]=(catCounts[c]||0)+1; });
-  // 若尚未選分類（初次進入），自動選第一個有資料的分類
-  if (!collCatFilter || !cats.includes(collCatFilter)) {
-    collCatFilter = cats[0] || '';
+  if (!collCatFilter || !cats.includes(collCatFilter)) collCatFilter = cats[0] || '';
+
+  // ── 新版統計區 ─────────────────────────────────────────────────
+  const kpiEl = document.getElementById('coll-kpi');
+  if (kpiEl) {
+    kpiEl.className = ''; // 移除 kpi-grid，用自訂 grid
+
+    // SVG donut：各分類比例
+    const r=52, cx=64, cy=64, sw=13, circ=2*Math.PI*r;
+    let accum=0;
+    const arcSegs = cats.filter(c=>catCounts[c]>0).map(c=>{
+      const pct=(catCounts[c]||0)/(owned.length||1);
+      const seg=Math.max(0, pct*circ - (cats.length>1?3:0));
+      const color=CAT_COLORS[c]||'#94a3b8';
+      const el=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+        stroke-dasharray="${seg.toFixed(1)} ${circ.toFixed(1)}"
+        stroke-dashoffset="${(-accum).toFixed(1)}"
+        transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
+      accum+=pct*circ; return el;
+    }).join('');
+    const catEmoji = CAT_EMOJI[collCatFilter]||'📦';
+    const trackedCount = allSeriesEntries.filter(([,v])=>v.total>0).length;
+
+    kpiEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+
+        <!-- 左：圓形統計 + 分類明細 -->
+        <div style="background:var(--bg2);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px 22px;display:flex;gap:20px;align-items:center">
+          <div style="position:relative;flex-shrink:0">
+            <svg width="128" height="128" style="display:block">
+              <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${sw}"/>
+              ${arcSegs}
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+              <span style="font-size:38px;line-height:1">${catEmoji}</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#475569;letter-spacing:.09em;font-weight:700;margin-bottom:3px">TOTAL ITEMS</div>
+            <div style="font-size:34px;font-weight:800;color:#f1f5f9;line-height:1;margin-bottom:2px">${owned.length} <span style="font-size:16px;font-weight:500;color:#64748b">件</span></div>
+            <div style="font-size:9px;color:#334155;letter-spacing:.07em;margin-bottom:14px">CURRENTLY HELD</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${cats.filter(c=>catCounts[c]>0).map(c=>`
+                <div style="display:flex;align-items:center;gap:7px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:${CAT_COLORS[c]||'#94a3b8'};flex-shrink:0"></span>
+                  <span style="font-size:12px;color:#94a3b8">${CAT_EMOJI[c]||''} ${c}</span>
+                  <span style="font-size:12px;color:#e2e8f0;font-family:'DM Mono',monospace;margin-left:auto">${catCounts[c]}</span>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 右：三格數字卡 -->
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${[
+            {icon:'☆', en:'WISHLIST',        zh:'願望清單', val:`${wishlistItems.length} 件`, color:'#f59e0b'},
+            {icon:'◎', en:'FOLLOWING SERIES', zh:'追蹤系列', val:`${trackedCount} 個`,         color:'#22c55e'},
+            {icon:'✓', en:'SOLD ITEMS',       zh:'已出售',   val:`${soldItems.length} 件`,     color:'#475569'},
+          ].map(s=>`
+            <div style="background:var(--bg2);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex:1">
+              <span style="font-size:20px;color:${s.color};opacity:.75;flex-shrink:0">${s.icon}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:9px;color:#334155;letter-spacing:.08em;font-weight:700">${s.en}</div>
+                <div style="font-size:12px;color:#64748b">${s.zh}</div>
+              </div>
+              <div style="font-size:20px;font-weight:700;color:${s.color};font-family:'DM Mono',monospace;flex-shrink:0">${s.val}</div>
+            </div>`).join('')}
+        </div>
+
+      </div>`;
   }
 
+  // 篩選 pills
   const pillsEl = document.getElementById('coll-pills');
   if (pillsEl) pillsEl.innerHTML =
     cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('');
