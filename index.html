@@ -371,16 +371,12 @@ let collCatFilter = 'all';
 let collSearch    = '';
 let _collData     = [];
 let _collSeries   = {};
-let _collIme      = false;  // IME 組字中標記，避免中文輸入時即時觸發搜尋
 
 function pillStyle(active, color) {
   return `background:${active?color+'22':'transparent'};color:${active?color:'#64748b'};border:1px solid ${active?color+'55':'#334155'};border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s`;
 }
 function filterColl(cat) { collCatFilter = cat; renderCollBody(); }
 function searchColl(v)   { collSearch = v;      renderCollBody(); }
-function onCollInput(el) { if (!_collIme) searchColl(el.value); }
-function onCollImeStart() { _collIme = true; }
-function onCollImeEnd(el) { _collIme = false; searchColl(el.value); }
 function isSold(v)       { return v===true || String(v).toUpperCase()==='TRUE'; }
 function isWishlist(v)   { return v===true || String(v).toUpperCase()==='TRUE'; }
 
@@ -472,12 +468,24 @@ function renderColl() {
     <div id="coll-kpi" class="kpi-grid"></div>
     <input id="coll-search-input" class="coll-search"
       placeholder="搜尋名稱、IP / 系列、物品型態、備註…"
-      oninput="onCollInput(this)"
-      oncompositionstart="onCollImeStart()"
-      oncompositionend="onCollImeEnd(this)"
       value="${collSearch}">
     <div id="coll-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
     <div id="coll-body"></div>`;
+
+  // 用 addEventListener 處理 IME（中文輸入法），比 inline handler 可靠
+  const inp = document.getElementById('coll-search-input');
+  let _imeOn = false, _searchTimer = null;
+  inp.addEventListener('compositionstart', () => { _imeOn = true; });
+  inp.addEventListener('compositionend',   () => {
+    _imeOn = false;
+    clearTimeout(_searchTimer);
+    searchColl(inp.value);
+  });
+  inp.addEventListener('input', () => {
+    if (_imeOn) return;           // 組字中，等 compositionend 再觸發
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => searchColl(inp.value), 120); // 英文稍作 debounce
+  });
 
   renderCollBody();
 }
