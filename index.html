@@ -379,7 +379,9 @@ function pillStyle(active, color) {
 function filterColl(cat)    { collCatFilter = cat; renderCollBody(); }
 function searchColl(v)      { collSearch = v;      renderCollBody(); }
 function toggleCabinet(type) {
-  collCollapsed.has(type) ? collCollapsed.delete(type) : collCollapsed.add(type);
+  // dataset.type 是字串，空字串對應「未分類」
+  const key = type || '';
+  collCollapsed.has(key) ? collCollapsed.delete(key) : collCollapsed.add(key);
   renderCollBody();
 }
 function isSold(v)       { return v===true || String(v).toUpperCase()==='TRUE'; }
@@ -615,12 +617,11 @@ function renderCollBody() {
         const isNamed    = !!type;
         const collapsed  = collCollapsed.has(type);
         const labelColor = isNamed ? '#cbd5e1' : '#475569';
-        const chevron    = collapsed ? '›' : '∨';
-        // 先算好卡片 HTML，避免 template literal 嵌套
-        const gridHtml   = collapsed ? '' : '<div class="coll-grid">' + items.map(makeCollCard).join('') + '</div>';
-        const typeKey    = JSON.stringify(type); // 安全傳中文到 onclick
+        const chevron  = collapsed ? '›' : '∨';
+        const gridHtml = collapsed ? '' : '<div class="coll-grid">' + items.map(makeCollCard).join('') + '</div>';
+        // 用 data-type 屬性傳中文，避免雙引號嵌入 onclick 字串破壞 HTML 解析
         return '<div style="margin-bottom:' + (collapsed ? '8' : '28') + 'px">'
-          + '<div onclick="toggleCabinet(' + typeKey + ')"'
+          + '<div data-type="' + type.replace(/"/g, '&quot;') + '" onclick="toggleCabinet(this.dataset.type)"'
           + ' style="display:flex;align-items:center;gap:10px;margin-bottom:' + (collapsed ? '0' : '14') + 'px;'
           + 'cursor:pointer;padding:8px 10px;border-radius:8px;user-select:none"'
           + ' onmouseenter="this.style.background=\'rgba(255,255,255,0.04)\'"'
