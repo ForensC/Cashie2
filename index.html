@@ -443,9 +443,22 @@ function showCollPanel(id) {
   const series   = _collSeries[String(r[6]||'')];
 
   // 詳情列（字串拼接，不用 template literal）
-  const tags     = parseTags(r[13]);
-  const grade    = getGradeTag(tags);
-  const otherT   = getNonGradeTags(tags);
+  const tags  = parseTags(r[13]);
+  const grade = getGradeTag(tags);
+  const otherT = getNonGradeTags(tags);
+  const gs    = grade ? GRADE_STYLE[grade.toUpperCase()] : null;
+
+  // 面板：等級 badge HTML（提前計算，避免 IIFE 在字串裡觸發 Babel 問題）
+  let panelGradeBadge = '';
+  if (grade && gs) {
+    panelGradeBadge = '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + gs.bg + ';color:' + gs.text + ';font-weight:800;box-shadow:' + gs.shadow + '">' + grade.toUpperCase() + '</span>';
+  }
+
+  const otherTagsHtml = otherT.length
+    ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">'
+      + otherT.map(t => '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1)">' + t + '</span>').join('')
+      + '</div>'
+    : '';
 
   const detailDefs = [
     series && ['IP / 系列', series.name],
@@ -486,10 +499,10 @@ function showCollPanel(id) {
     +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
     +     '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;font-weight:700">' + (r[4]||'') + '</span>'
     +     (r[5] ? '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,0.06);color:#64748b;border:1px solid rgba(255,255,255,0.08)">' + r[5] + '</span>' : '')
-    +     (grade ? (function(){ const gs=GRADE_STYLE[grade.toUpperCase()]; return '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + gs.bg + ';color:' + gs.text + ';font-weight:800;box-shadow:' + gs.shadow + '">' + grade.toUpperCase() + '</span>'; })() : '')
+    +     panelGradeBadge
     +   '</div>'
     +   '<div style="font-size:16px;font-weight:700;color:#f1f5f9;line-height:1.4;margin-bottom:10px">' + (r[3]||'') + '</div>'
-    +   (otherT.length ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">' + otherT.map(t => '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1)">' + t + '</span>').join('') + '</div>' : '')
+    +   otherTagsHtml
     +   detailsHtml
     +   noteHtml
     + '</div>';
