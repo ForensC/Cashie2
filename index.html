@@ -367,16 +367,21 @@ const CAT_EMOJI = {
   '其他':'📦'
 };
 
-let collCatFilter = '';
-let collSearch    = '';
-let _collData     = [];
-let _collSeries   = {};
+let collCatFilter  = '';
+let collSearch     = '';
+let _collData      = [];
+let _collSeries    = {};
+let collCollapsed  = new Set(); // 記錄哪些收藏櫃是收合的
 
 function pillStyle(active, color) {
   return `background:${active?color+'22':'transparent'};color:${active?color:'#64748b'};border:1px solid ${active?color+'55':'#334155'};border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s`;
 }
-function filterColl(cat) { collCatFilter = cat; renderCollBody(); }
-function searchColl(v)   { collSearch = v;      renderCollBody(); }
+function filterColl(cat)    { collCatFilter = cat; renderCollBody(); }
+function searchColl(v)      { collSearch = v;      renderCollBody(); }
+function toggleCabinet(type) {
+  collCollapsed.has(type) ? collCollapsed.delete(type) : collCollapsed.add(type);
+  renderCollBody();
+}
 function isSold(v)       { return v===true || String(v).toUpperCase()==='TRUE'; }
 function isWishlist(v)   { return v===true || String(v).toUpperCase()==='TRUE'; }
 
@@ -601,13 +606,21 @@ function renderCollBody() {
   const cabinetHtml = filtered.length
     ? sortedTypes.map(type => {
         const items=typeMap[type], label=type||'未分類', isNamed=!!type;
-        return `<div style="margin-bottom:32px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <span style="font-size:13px;font-weight:700;color:${isNamed?'#cbd5e1':'#475569'};letter-spacing:.03em">${label}</span>
+        const collapsed=collCollapsed.has(type);
+        const labelColor=isNamed?'#cbd5e1':'#475569';
+        const catColor=CAT_COLORS[collCatFilter]||'#94a3b8';
+        // JSON.stringify 確保中文/特殊字元在 onclick 裡安全傳遞
+        return `<div style="margin-bottom:${collapsed?'8':'28'}px">
+          <div onclick="toggleCabinet(${JSON.stringify(type)})"
+            style="display:flex;align-items:center;gap:10px;margin-bottom:${collapsed?'0':'14'}px;cursor:pointer;padding:8px 10px;border-radius:8px;transition:background .15s;user-select:none"
+            onmouseenter="this.style.background='rgba(255,255,255,0.04)'"
+            onmouseleave="this.style.background='transparent'">
+            <span style="font-size:13px;font-weight:700;color:${labelColor};letter-spacing:.03em">${label}</span>
             <span style="font-size:11px;color:#475569;font-family:'DM Mono',monospace">${items.length} 件</span>
             <div style="flex:1;height:1px;background:rgba(255,255,255,0.06)"></div>
+            <span style="font-size:11px;color:#475569;display:inline-block;transition:transform .2s;transform:rotate(${collapsed?'-90':'0'}deg)">∨</span>
           </div>
-          <div class="coll-grid">${items.map(makeCollCard).join('')}</div>
+          ${collapsed?'': `<div class="coll-grid">${items.map(makeCollCard).join('')}</div>`}
         </div>`;
       }).join('')
     : `<div class="empty">${collSearch?'找不到符合的收藏':'此分類尚無收藏'}</div>`;
