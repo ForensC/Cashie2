@@ -103,10 +103,16 @@ tr:nth-child(even) td{background:rgba(255,255,255,0.012)}
 .coll-search{width:100%;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:9px 14px;color:#f1f5f9;font-size:13px;font-family:inherit;margin-bottom:14px;transition:border-color .15s}
 .coll-search:focus{border-color:#475569}
 .coll-search::placeholder{color:#475569}
-/* Modal */
-#coll-modal{position:fixed;inset:0;z-index:300;display:none}
-.coll-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
-.coll-dialog{background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;position:relative}
+/* Collection layout wrapper */
+#coll-wrapper{display:flex;gap:20px;align-items:flex-start}
+#coll-main{flex:1;min-width:0}
+/* Side detail panel */
+#coll-panel{width:0;overflow:hidden;transition:width .28s cubic-bezier(.4,0,.2,1);flex-shrink:0}
+#coll-panel.open{width:300px}
+#coll-panel-inner{width:300px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow-y:auto;max-height:calc(100vh - 120px);position:sticky;top:76px}
+.coll-card.selected{border-color:var(--green);box-shadow:0 0 0 2px rgba(34,197,94,0.25)}
+/* 移除舊 Modal */
+#coll-modal{display:none!important}
 </style>
 </head>
 <body>
@@ -393,53 +399,93 @@ function driveImg(url) {
   return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400` : url;
 }
 
-function showCollModal(id) {
+let _collSelectedId = null;
+
+function showCollPanel(id) {
   const r = _collData.find(x => String(x[0]) === String(id));
   if (!r) return;
-  const sid    = String(r[6]||'');
-  const series = _collSeries[sid];
-  const imgUrl = driveImg(r[10]||'');
+
+  // 卡片高亮
+  document.querySelectorAll('.coll-card.selected').forEach(el => el.classList.remove('selected'));
+  const cardEl = document.getElementById('cc-' + id);
+  if (cardEl) cardEl.classList.add('selected');
+  _collSelectedId = id;
+
+  const panel  = document.getElementById('coll-panel');
+  const inner  = document.getElementById('coll-panel-inner');
+  if (!panel || !inner) return;
+
   const catColor = CAT_COLORS[r[4]] || '#94a3b8';
-  const details = [
-    series        && ['IP / 系列', series.name],
-    r[5]          && ['物品型態',  r[5]],
-    r[1]          && ['入手日',    fmt.d(r[1])],
-    r[2]          && ['購入價格',  `NT$ ${Number(r[2]).toLocaleString()}`],
-    r[11]         && ['取得方式',  r[11]],
+  const emoji    = CAT_EMOJI[r[4]] || '📦';
+  const imgUrl   = driveImg(r[10]||'');
+  const series   = _collSeries[String(r[6]||'')];
+
+  // 詳情列（字串拼接，不用 template literal）
+  const detailDefs = [
+    series && ['IP / 系列', series.name],
+    r[5]   && ['物品型態',  r[5]],
+    r[1]   && ['入手日',    fmt.d(r[1])],
+    r[2]   && ['購入價格',  'NT$ ' + Number(r[2]).toLocaleString()],
+    r[11]  && ['取得方式',  r[11]],
   ].filter(Boolean);
 
-  document.getElementById('coll-modal').style.display = 'block';
-  document.getElementById('coll-modal').innerHTML = `
-    <div class="coll-overlay" onclick="hideCollModal()">
-      <div class="coll-dialog" onclick="event.stopPropagation()">
-        <button onclick="hideCollModal()" style="position:sticky;top:12px;float:right;margin:12px 12px 0 0;background:rgba(255,255,255,0.08);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;color:#94a3b8;font-size:18px;line-height:32px;text-align:center;z-index:1">×</button>
-        ${imgUrl ? `<div style="clear:both"><img src="${imgUrl}" style="width:100%;max-height:280px;object-fit:contain;background:#0a0d14;border-radius:14px 14px 0 0"></div>`
-                 : `<div style="clear:both;height:120px;background:linear-gradient(135deg,${catColor}22,${catColor}08);border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:center;font-size:56px;opacity:.5">${CAT_EMOJI[r[4]]||'📦'}</div>`}
-        <div style="padding:24px">
-          <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-            <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[4]||''}</span>
-            ${r[5] ? `<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.08)">${r[5]}</span>` : ''}
-          </div>
-          <div style="font-size:20px;font-weight:700;color:#f1f5f9;margin-bottom:20px;line-height:1.3">${r[3]||''}</div>
-          ${details.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-            ${details.map(([l,v])=>`<div><div style="font-size:11px;color:#64748b;margin-bottom:3px">${l}</div><div style="font-size:13px;color:#e2e8f0;font-family:'DM Mono',monospace">${v}</div></div>`).join('')}
-          </div>` : ''}
-          ${r[9] ? `<div style="padding:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;font-size:13px;color:#94a3b8;line-height:1.6">${r[9]}</div>` : ''}
-        </div>
-      </div>
-    </div>`;
+  const detailsHtml = detailDefs.length
+    ? '<div style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px">'
+      + detailDefs.map(function(d) {
+          return '<div>'
+            + '<div style="font-size:10px;color:#475569;letter-spacing:.05em;margin-bottom:3px">' + d[0] + '</div>'
+            + '<div style="font-size:13px;color:#e2e8f0">' + d[1] + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div>'
+    : '';
+
+  const imgHtml = imgUrl
+    ? '<img src="' + imgUrl + '" style="width:100%;max-height:220px;object-fit:cover;display:block">'
+    : '<div style="height:100px;background:linear-gradient(135deg,' + catColor + '18,' + catColor + '06);display:flex;align-items:center;justify-content:center;font-size:48px;opacity:.5">' + emoji + '</div>';
+
+  const noteHtml = r[9]
+    ? '<div style="padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;font-size:12px;color:#94a3b8;line-height:1.65">' + r[9] + '</div>'
+    : '';
+
+  inner.innerHTML =
+    // 關閉按鈕
+    '<div style="display:flex;justify-content:flex-end;padding:12px 12px 0">'
+    + '<button onclick="hideCollPanel()" style="background:rgba(255,255,255,0.06);border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;color:#64748b;font-size:16px;line-height:28px;text-align:center;display:flex;align-items:center;justify-content:center">×</button>'
+    + '</div>'
+    // 圖片
+    + imgHtml
+    // 內容
+    + '<div style="padding:16px">'
+    +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'
+    +     '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;font-weight:700">' + (r[4]||'') + '</span>'
+    +     (r[5] ? '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,0.06);color:#64748b;border:1px solid rgba(255,255,255,0.08)">' + r[5] + '</span>' : '')
+    +   '</div>'
+    +   '<div style="font-size:16px;font-weight:700;color:#f1f5f9;line-height:1.4;margin-bottom:16px">' + (r[3]||'') + '</div>'
+    +   detailsHtml
+    +   noteHtml
+    + '</div>';
+
+  panel.classList.add('open');
 }
-function hideCollModal() {
-  const m = document.getElementById('coll-modal');
-  m.style.display = 'none'; m.innerHTML = '';
+
+function hideCollPanel() {
+  const panel = document.getElementById('coll-panel');
+  if (panel) panel.classList.remove('open');
+  document.querySelectorAll('.coll-card.selected').forEach(el => el.classList.remove('selected'));
+  _collSelectedId = null;
 }
+
+// 保留舊名稱供相容
+function showCollModal(id) { showCollPanel(id); }
+function hideCollModal()   { hideCollPanel(); }
 
 // 卡片產生器（模組級，renderCollBody 呼叫）
 function makeCollCard(r) {
   const imgUrl   = driveImg(r[10]||'');
   const catColor = CAT_COLORS[r[4]] || '#94a3b8';
   const emoji    = CAT_EMOJI[r[4]] || '📦';
-  return `<div class="coll-card" onclick="showCollModal('${r[0]}')">
+  return `<div id="cc-${r[0]}" class="coll-card${_collSelectedId===String(r[0])?' selected':''}" onclick="showCollPanel('${r[0]}')">
     <div class="coll-img">
       ${imgUrl
         ? `<img src="${imgUrl}" alt="${r[3]||''}" loading="lazy">`
@@ -471,13 +517,14 @@ function renderColl() {
   });
 
   // 建立固定 shell（搜尋框只在這裡建一次，不會被重建）
-  document.getElementById('content').innerHTML = `
-    <div id="coll-kpi" class="kpi-grid"></div>
-    <input id="coll-search-input" class="coll-search"
-      placeholder="搜尋名稱、IP / 系列、物品型態、備註…"
-      value="${collSearch}">
-    <div id="coll-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>
-    <div id="coll-body"></div>`;
+  document.getElementById('content').innerHTML =
+    '<div id="coll-kpi"></div>'
+    + '<input id="coll-search-input" class="coll-search" placeholder="搜尋名稱、IP / 系列、物品型態、備註…" value="' + collSearch.replace(/"/g,'&quot;') + '">'
+    + '<div id="coll-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>'
+    + '<div id="coll-wrapper">'
+    +   '<div id="coll-main"><div id="coll-body"></div></div>'
+    +   '<div id="coll-panel"><div id="coll-panel-inner"></div></div>'
+    + '</div>';
 
   // 用 addEventListener 處理 IME（中文輸入法），比 inline handler 可靠
   const inp = document.getElementById('coll-search-input');
