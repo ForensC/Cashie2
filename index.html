@@ -468,11 +468,15 @@ function showCollPanel(id) {
       + '</div>'
     : '';
 
+  // 購入金額：去掉逗號、貨幣符號等非數字字元再解析，避免 gviz 回傳格式化字串
+  var rawAmt = parseFloat(String(r[2]||'').replace(/[^0-9.]/g, ''));
+  var amountRow = (!isNaN(rawAmt) && rawAmt > 0) ? ['購入價格', 'NT$ ' + rawAmt.toLocaleString()] : false;
+
   const detailDefs = [
     series && ['IP / 系列', series.name],
     r[5]   && ['物品型態',  r[5]],
     r[1]   && ['入手日',    fmt.d(r[1])],
-    r[2]   && ['購入價格',  'NT$ ' + Number(r[2]).toLocaleString()],
+    amountRow,
     r[11]  && ['取得方式',  r[11]],
   ].filter(Boolean);
 
