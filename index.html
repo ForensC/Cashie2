@@ -605,25 +605,30 @@ function renderCollBody() {
 
   const cabinetHtml = filtered.length
     ? sortedTypes.map(type => {
-        const items=typeMap[type], label=type||'未分類', isNamed=!!type;
-        const collapsed=collCollapsed.has(type);
-        const labelColor=isNamed?'#cbd5e1':'#475569';
-        const catColor=CAT_COLORS[collCatFilter]||'#94a3b8';
-        // JSON.stringify 確保中文/特殊字元在 onclick 裡安全傳遞
-        return `<div style="margin-bottom:${collapsed?'8':'28'}px">
-          <div onclick="toggleCabinet(${JSON.stringify(type)})"
-            style="display:flex;align-items:center;gap:10px;margin-bottom:${collapsed?'0':'14'}px;cursor:pointer;padding:8px 10px;border-radius:8px;transition:background .15s;user-select:none"
-            onmouseenter="this.style.background='rgba(255,255,255,0.04)'"
-            onmouseleave="this.style.background='transparent'">
-            <span style="font-size:13px;font-weight:700;color:${labelColor};letter-spacing:.03em">${label}</span>
-            <span style="font-size:11px;color:#475569;font-family:'DM Mono',monospace">${items.length} 件</span>
-            <div style="flex:1;height:1px;background:rgba(255,255,255,0.06)"></div>
-            <span style="font-size:11px;color:#475569;display:inline-block;transition:transform .2s;transform:rotate(${collapsed?'-90':'0'}deg)">∨</span>
-          </div>
-          ${collapsed?'': `<div class="coll-grid">${items.map(makeCollCard).join('')}</div>`}
-        </div>`;
+        const items      = typeMap[type];
+        const label      = type || '未分類';
+        const isNamed    = !!type;
+        const collapsed  = collCollapsed.has(type);
+        const labelColor = isNamed ? '#cbd5e1' : '#475569';
+        const chevron    = collapsed ? '›' : '∨';
+        // 先算好卡片 HTML，避免 template literal 嵌套
+        const gridHtml   = collapsed ? '' : '<div class="coll-grid">' + items.map(makeCollCard).join('') + '</div>';
+        const typeKey    = JSON.stringify(type); // 安全傳中文到 onclick
+        return '<div style="margin-bottom:' + (collapsed ? '8' : '28') + 'px">'
+          + '<div onclick="toggleCabinet(' + typeKey + ')"'
+          + ' style="display:flex;align-items:center;gap:10px;margin-bottom:' + (collapsed ? '0' : '14') + 'px;'
+          + 'cursor:pointer;padding:8px 10px;border-radius:8px;user-select:none"'
+          + ' onmouseenter="this.style.background=\'rgba(255,255,255,0.04)\'"'
+          + ' onmouseleave="this.style.background=\'transparent\'">'
+          + '<span style="font-size:13px;font-weight:700;color:' + labelColor + ';letter-spacing:.03em">' + label + '</span>'
+          + '<span style="font-size:11px;color:#475569;font-family:\'DM Mono\',monospace">' + items.length + ' 件</span>'
+          + '<div style="flex:1;height:1px;background:rgba(255,255,255,0.06)"></div>'
+          + '<span style="font-size:13px;color:#475569;transition:transform .2s">' + chevron + '</span>'
+          + '</div>'
+          + gridHtml
+          + '</div>';
       }).join('')
-    : `<div class="empty">${collSearch?'找不到符合的收藏':'此分類尚無收藏'}</div>`;
+    : '<div class="empty">' + (collSearch ? '找不到符合的收藏' : '此分類尚無收藏') + '</div>';
 
   // 願望清單
   const wishHtml = wishlistItems.length ? `
