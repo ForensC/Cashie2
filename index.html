@@ -367,7 +367,7 @@ const CAT_EMOJI = {
   '其他':'📦'
 };
 
-let collCatFilter = 'all';
+let collCatFilter = '';
 let collSearch    = '';
 let _collData     = [];
 let _collSeries   = {};
@@ -511,13 +511,17 @@ function renderCollBody() {
   const cats = [...new Set(owned.map(r=>r[4]).filter(Boolean))];
   const catCounts = {};
   owned.forEach(r => { const c=r[4]||'其他'; catCounts[c]=(catCounts[c]||0)+1; });
-  const pillsEl = document.getElementById('coll-pills');
-  if (pillsEl) pillsEl.innerHTML = `
-    <button onclick="filterColl('all')" style="${pillStyle(collCatFilter==='all','#94a3b8')}">全部 ${owned.length}</button>
-    ${cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('')}`;
+  // 若尚未選分類（初次進入），自動選第一個有資料的分類
+  if (!collCatFilter || !cats.includes(collCatFilter)) {
+    collCatFilter = cats[0] || '';
+  }
 
-  // 篩選 + 搜尋
-  let filtered = collCatFilter==='all' ? owned : owned.filter(r=>r[4]===collCatFilter);
+  const pillsEl = document.getElementById('coll-pills');
+  if (pillsEl) pillsEl.innerHTML =
+    cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('');
+
+  // 篩選 + 搜尋（固定按單一分類篩，不再有「全部」混合模式）
+  let filtered = owned.filter(r=>r[4]===collCatFilter);
   if (collSearch) {
     const q = collSearch.toLowerCase();
     filtered = filtered.filter(r => {
