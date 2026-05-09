@@ -438,7 +438,8 @@ function renderColl() {
     const sid = String(r[6]||''); if (!sid) return;
     seriesOwned[sid] = (seriesOwned[sid]||0) + 1;
   });
-  const allSeriesEntries = Object.entries(_collSeries).filter(([,v])=>v.total>0);
+  // 包含所有有定義的系列（total=0 表示不追完整度，只歸組）
+  const allSeriesEntries = Object.entries(_collSeries);
 
   // 分類
   const cats = [...new Set(owned.map(r=>r[4]).filter(Boolean))];
@@ -482,11 +483,14 @@ function renderColl() {
     </div>`;
   }).join('');
 
-  // 系列完整度
+  // 系列 / 歸組
+  const trackedSeries  = filteredSeries.filter(([,v])=>v.total>0); // 有追完整度
+  const groupedSeries  = filteredSeries.filter(([sid,v])=>v.total===0 && (seriesOwned[sid]||0)>0); // 純歸組
+
   const seriesHtml = filteredSeries.length ? `
     <div class="card">
-      <div class="card-hd"><span class="card-t">系列完整度</span></div>
-      ${filteredSeries.map(([sid,s])=>{
+      <div class="card-hd"><span class="card-t">系列 / 歸組</span></div>
+      ${trackedSeries.map(([sid,s])=>{
         const cnt=seriesOwned[sid]||0, pct=Math.min(cnt/s.total,1);
         const color=CAT_COLORS[s.mainCat]||'#94a3b8', done=cnt>=s.total;
         return `<div style="margin-bottom:14px">
@@ -502,6 +506,16 @@ function renderColl() {
           </div>
         </div>`;
       }).join('')}
+      ${groupedSeries.length ? `
+        <div style="display:flex;flex-wrap:wrap;gap:8px;${trackedSeries.length?'margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.05)':''}">
+          ${groupedSeries.map(([sid,s])=>{
+            const cnt=seriesOwned[sid]||0, color=CAT_COLORS[s.mainCat]||'#94a3b8';
+            return `<div style="display:flex;align-items:center;gap:8px;background:${color}0d;border:1px solid ${color}22;border-radius:8px;padding:7px 12px">
+              <span style="font-size:13px;color:#e2e8f0;font-weight:500">${s.name}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b">${cnt} 件</span>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
     </div>` : '';
 
   // 願望清單
@@ -542,7 +556,7 @@ function renderColl() {
     <div class="kpi-grid">
       <div class="kpi"><div class="kpi-l">持有中</div><div class="kpi-v kv-def">${owned.length} 件</div></div>
       <div class="kpi"><div class="kpi-l">願望清單</div><div class="kpi-v" style="color:#f59e0b">${wishlistItems.length} 件</div></div>
-      <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeriesEntries.length} 個</div></div>
+      <div class="kpi"><div class="kpi-l">追蹤系列</div><div class="kpi-v kv-def">${allSeriesEntries.filter(([,v])=>v.total>0).length} 個</div></div>
       <div class="kpi"><div class="kpi-l">已出售</div><div class="kpi-v" style="color:#334155">${soldItems.length} 件</div></div>
     </div>
     <input class="coll-search" placeholder="搜尋品項名稱、子類、心得…" oninput="searchColl(this.value)" value="${collSearch}">
