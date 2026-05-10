@@ -127,7 +127,8 @@ function parseWithGemini(text) {
       {
         method:'post', contentType:'application/json',
         payload: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.1,maxOutputTokens:200} }),
-        muteHttpExceptions: true
+        muteHttpExceptions: true,
+        deadline: 8
       }
     );
     if (res.getResponseCode() !== 200) { Logger.log('Gemini ' + res.getResponseCode()); return null; }
