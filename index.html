@@ -44,22 +44,22 @@ input:focus{outline:none}
 #status{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12px;color:#93c5fd;display:none;align-items:center;gap:8px}
 #status.err{background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.25);color:#fca5a5}
 
-/* Tabs */
-.tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.tab{padding:9px 18px;border:none;border-bottom:2px solid transparent;background:transparent;cursor:pointer;font-size:13px;color:var(--text3);font-family:inherit;transition:all .15s;margin-bottom:-1px}
-.tab:hover{color:var(--text2)}
-.tab.on{color:var(--text);font-weight:600;border-bottom-color:var(--green)}
+/* Tabs — pill capsule */
+.tabs{display:flex;gap:4px;margin-bottom:28px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:50px;padding:4px;width:fit-content}
+.tab{padding:7px 18px;border:none;border-radius:50px;background:transparent;cursor:pointer;font-size:13px;color:var(--text3);font-family:inherit;transition:all .2s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.tab:hover{color:var(--text2);background:rgba(255,255,255,0.04)}
+.tab.on{background:var(--bg3);color:var(--text);font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,0.4)}
 
 /* KPI */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
-.kpi{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--rl);padding:20px 22px}
+.kpi{background:var(--bg2);border:1px solid rgba(255,255,255,0.07);border-radius:var(--rl);padding:20px 22px;box-shadow:0 2px 12px rgba(0,0,0,0.25)}
 .kpi-l{font-size:12px;color:var(--text3);letter-spacing:.06em;margin-bottom:8px}
 .kpi-v{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:-.02em}
 .kpi-s{font-size:12px;color:var(--text3);margin-top:4px}
 .kv-def{color:var(--text)}.kv-pos{color:var(--green)}.kv-neg{color:var(--red)}.kv-amb{color:var(--amber)}
 
 /* Cards */
-.card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--rl);padding:20px;margin-bottom:14px;overflow:hidden}
+.card{background:var(--bg2);border:1px solid rgba(255,255,255,0.07);border-radius:var(--rl);padding:20px;margin-bottom:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.2)}
 .card-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .card-t{font-size:13px;color:var(--text3)}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -137,10 +137,10 @@ tr:nth-child(even) td{background:rgba(255,255,255,0.012)}
 <div id="wrap">
   <div id="status"></div>
   <div class="tabs">
-    <button class="tab on" data-tab="passive">被動配置</button>
-    <button class="tab" data-tab="active">主動投資</button>
-    <button class="tab" data-tab="cf">現金流</button>
-    <button class="tab" data-tab="coll">收藏</button>
+    <button class="tab on" data-tab="passive"><span>🏛</span>被動配置</button>
+    <button class="tab" data-tab="active"><span>📈</span>主動投資</button>
+    <button class="tab" data-tab="cf"><span>💳</span>現金流</button>
+    <button class="tab" data-tab="coll"><span>🗂</span>收藏</button>
   </div>
   <div id="passive-root"></div>
   <div id="content" style="display:none"><div class="empty"><span class="spin"></span> 載入中...</div></div>
@@ -341,20 +341,27 @@ function renderCF() {
     return '<button onclick="cfSelectMonth(\'' + m + '\')" style="' + s + '">' + m + '</button>';
   }).join('');
 
-  // ── KPI 卡片（4格）───────────────────────────────────────
+  // ── KPI 卡片（4格）— 收入為主角深色卡 ───────────────────
   const kpiItems = [
-    { type:'income',     val:income  },
-    { type:'fixed',      val:fixed   },
-    { type:'variable',   val:varExp  },
-    { type:'investment', val:invest  },
+    { type:'income',     val:income, hero:true  },
+    { type:'fixed',      val:fixed,  hero:false },
+    { type:'variable',   val:varExp, hero:false },
+    { type:'investment', val:invest, hero:false },
   ];
   const kpiHtml = kpiItems.map(k =>
-    '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 20px">'
-    + '<div style="font-size:11px;color:#64748b;margin-bottom:10px;display:flex;align-items:center;gap:5px">'
-    + '<span>' + CF_ICON[k.type] + '</span>'
-    + '<span>' + CF_LABEL[k.type] + '</span>'
+    '<div style="'
+    + (k.hero
+        ? 'background:#0c1424;border:1px solid rgba(34,197,94,0.2);box-shadow:0 4px 24px rgba(0,0,0,0.4),0 0 0 1px rgba(34,197,94,0.05);'
+        : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);box-shadow:0 1px 4px rgba(0,0,0,0.2);')
+    + 'border-radius:14px;padding:18px 20px">'
+    + '<div style="font-size:10px;color:' + (k.hero ? '#1e3a2e' : '#334155') + ';margin-bottom:8px;letter-spacing:.07em;font-weight:700">'
+    + CF_LABEL[k.type].toUpperCase()
     + '</div>'
-    + '<div style="font-size:20px;font-weight:700;color:' + CF_COLOR[k.type] + ';font-family:\'DM Mono\',monospace">NT$' + fN(k.val) + '</div>'
+    + '<div style="font-size:11px;color:#64748b;margin-bottom:12px;display:flex;align-items:center;gap:4px">'
+    + '<span>' + CF_ICON[k.type] + '</span>'
+    + '<span>' + (k.hero ? cfMonthFilter : CF_LABEL[k.type]) + '</span>'
+    + '</div>'
+    + '<div style="font-size:' + (k.hero ? '22' : '18') + 'px;font-weight:' + (k.hero ? '800' : '700') + ';color:' + CF_COLOR[k.type] + ';font-family:\'DM Mono\',monospace;letter-spacing:-.01em">NT$' + fN(k.val) + '</div>'
     + '</div>'
   ).join('');
 
@@ -363,15 +370,21 @@ function renderCF() {
   const rateColor   = saveRate != null && saveRate >= 0.2 ? '#f59e0b' : '#94a3b8';
   const rateLabel   = saveRate != null && saveRate >= 0.3 ? '優秀！' : saveRate != null && saveRate >= 0.2 ? '良好' : saveRate != null && saveRate >= 0 ? '偏低' : '';
   const savingsHtml =
-    '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px">'
-    + '<div>'
-    + '<div style="font-size:11px;color:#64748b;margin-bottom:6px">✨ 淨儲蓄（收入 − 固定 − 變動 − 投資）</div>'
-    + '<div style="font-size:28px;font-weight:800;color:' + saveColor + ';font-family:\'DM Mono\',monospace">NT$' + fN(netSave) + '</div>'
-    + '</div>'
-    + '<div style="text-align:right">'
-    + '<div style="font-size:10px;color:#475569;margin-bottom:4px;letter-spacing:.06em">SAVING RATE</div>'
-    + '<div style="font-size:32px;font-weight:800;color:' + rateColor + ';font-family:\'DM Mono\',monospace">' + fR(saveRate) + '</div>'
-    + (rateLabel ? '<div style="font-size:10px;color:' + rateColor + ';margin-top:2px">' + rateLabel + '</div>' : '')
+    // 外層：深色卡 + 微光暈
+    '<div style="background:#080e1a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px 24px;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.5)">'
+    // 背景光暈
+    + '<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 60%,' + saveColor + '12 0%,transparent 65%);pointer-events:none"></div>'
+    // 標籤
+    + '<div style="font-size:9px;color:#1e293b;letter-spacing:.12em;font-weight:700;margin-bottom:20px;text-transform:uppercase">Net Savings · ' + cfMonthFilter + '</div>'
+    // 主數字
+    + '<div style="font-size:48px;font-weight:800;color:' + saveColor + ';font-family:\'DM Mono\',monospace;letter-spacing:-.03em;line-height:1;margin-bottom:20px">NT$' + fN(netSave) + '</div>'
+    // 分隔線
+    + '<div style="width:40px;height:1px;background:rgba(255,255,255,0.06);margin:0 auto 20px"></div>'
+    // 儲蓄率 + 標籤
+    + '<div style="display:inline-flex;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:50px;padding:8px 20px">'
+    +   '<div style="font-size:9px;color:#334155;letter-spacing:.08em;font-weight:700">SAVING RATE</div>'
+    +   '<div style="font-size:22px;font-weight:800;color:' + rateColor + ';font-family:\'DM Mono\',monospace">' + fR(saveRate) + '</div>'
+    +   (rateLabel ? '<div style="font-size:10px;color:' + rateColor + ';font-weight:600">' + rateLabel + '</div>' : '')
     + '</div>'
     + '</div>';
 
