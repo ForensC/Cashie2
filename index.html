@@ -306,8 +306,8 @@ function renderCF() {
     return;
   }
 
-  // 跳過表頭列（row[0] 是欄位名稱），只取有 date 和 amount 的列
-  const data = rows.slice(1).filter(r => r[0] && r[1] != null && r[1] !== '');
+  // gviz API 不含表頭列，直接 filter 有 date 和 amount 的列
+  const data = rows.filter(r => r[0] && r[1] != null && r[1] !== '');
   if (!data.length) {
     document.getElementById('content').innerHTML = '<div class="empty">試算表中尚無資料，請在 cashflow 頁面新增記錄</div>';
     return;
