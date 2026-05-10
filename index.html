@@ -634,6 +634,26 @@ function renderCollBody() {
   owned.forEach(r => { const c=r[4]||'其他'; catCounts[c]=(catCounts[c]||0)+1; });
   if (!collCatFilter || !cats.includes(collCatFilter)) collCatFilter = cats[0] || '';
 
+  // 各分類累計花費（owned 不含 sold）
+  const catSpend = {};
+  owned.forEach(r => {
+    const c = r[4] || '其他';
+    const amt = parseFloat(String(r[2]||'').replace(/[^0-9.]/g,''));
+    catSpend[c] = (catSpend[c]||0) + (isNaN(amt) ? 0 : amt);
+  });
+
+  // 當前分類的花費統計
+  const catOwned   = owned.filter(r => r[4] === collCatFilter);
+  const catSold    = soldItems.filter(r => r[4] === collCatFilter);
+  const totalSpent = catOwned.reduce((s,r) => {
+    const v = parseFloat(String(r[2]||'').replace(/[^0-9.]/g,'')); return s + (isNaN(v)?0:v);
+  }, 0);
+  const totalRecov = catSold.reduce((s,r) => {
+    const v = parseFloat(String(r[8]||'').replace(/[^0-9.]/g,'')); return s + (isNaN(v)?0:v);
+  }, 0);
+  const netSpent   = totalSpent - totalRecov;
+  const fmtAmt     = v => 'NT$' + Math.abs(Math.round(v)).toLocaleString();
+
   // ── 新版統計區 ─────────────────────────────────────────────────
   const kpiEl = document.getElementById('coll-kpi');
   if (kpiEl) {
@@ -652,32 +672,41 @@ function renderCollBody() {
         +' transform="rotate(-90 '+cx+' '+cy+')" stroke-linecap="butt"/>';
       accum+=pct*circ; return el;
     }).join('');
-    const catEmoji     = CAT_EMOJI[collCatFilter] || '📦';
-    const trackedCount = allSeriesEntries.filter(([,v]) => v.total > 0).length;
+    const catEmoji = CAT_EMOJI[collCatFilter] || '📦';
 
-    // 分類明細列（字串拼接，避免 Babel 無法解析深層嵌套 template literal）
+    // 分類明細列（含各分類花費，字串拼接避免 Babel 巢狀 template literal 問題）
     const catRowsHtml = cats.filter(c => catCounts[c] > 0).map(c =>
       '<div style="display:flex;align-items:center;gap:7px">'
       + '<span style="width:7px;height:7px;border-radius:50%;background:' + (CAT_COLORS[c]||'#94a3b8') + ';flex-shrink:0"></span>'
       + '<span style="font-size:12px;color:#94a3b8">' + (CAT_EMOJI[c]||'') + ' ' + c + '</span>'
-      + '<span style="font-size:12px;color:#e2e8f0;font-family:\'DM Mono\',monospace;margin-left:auto">' + catCounts[c] + '</span>'
+      + '<div style="margin-left:auto;text-align:right;line-height:1.3">'
+      + '<div style="font-size:12px;color:#e2e8f0;font-family:\'DM Mono\',monospace">' + catCounts[c] + ' 件</div>'
+      + ((catSpend[c]||0) > 0 ? '<div style="font-size:10px;color:#475569;font-family:\'DM Mono\',monospace">NT$' + Math.round(catSpend[c]).toLocaleString() + '</div>' : '')
+      + '</div>'
       + '</div>'
     ).join('');
 
-    // 右側三格統計卡
+    // 右側三格花費統計卡（依當前分類）
+    const catLabel = (CAT_EMOJI[collCatFilter]||'') + ' ' + collCatFilter;
     const statDefs = [
-      {icon:'☆', en:'WISHLIST',         zh:'願望清單', val: wishlistItems.length + ' 件', color:'#f59e0b'},
-      {icon:'◎', en:'FOLLOWING SERIES', zh:'追蹤系列', val: trackedCount + ' 個',          color:'#22c55e'},
-      {icon:'✓', en:'SOLD ITEMS',       zh:'已出售',   val: soldItems.length + ' 件',      color:'#475569'},
+      { icon:'💰', en:'TOTAL SPENT',  zh: catLabel + ' 總花費',
+        val: totalSpent > 0 ? fmtAmt(totalSpent) : '—',
+        color:'#3b82f6' },
+      { icon:'🔄', en:'RECOVERED',    zh: catLabel + ' 已回收',
+        val: totalRecov > 0 ? fmtAmt(totalRecov) : '—',
+        color:'#22c55e' },
+      { icon:'📉', en:'NET SPEND',    zh: '淨支出（扣回收後）',
+        val: totalSpent > 0 ? (netSpent < 0 ? '-' : '') + fmtAmt(netSpent) : '—',
+        color: (totalSpent > 0 && netSpent <= 0) ? '#22c55e' : '#ef4444' },
     ];
     const statCardsHtml = statDefs.map(s =>
       '<div style="background:var(--bg2);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex:1">'
-      + '<span style="font-size:20px;color:' + s.color + ';opacity:.75;flex-shrink:0">' + s.icon + '</span>'
+      + '<span style="font-size:18px;flex-shrink:0">' + s.icon + '</span>'
       + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:9px;color:#334155;letter-spacing:.08em;font-weight:700">' + s.en + '</div>'
-      + '<div style="font-size:12px;color:#64748b">' + s.zh + '</div>'
+      + '<div style="font-size:11px;color:#64748b">' + s.zh + '</div>'
       + '</div>'
-      + '<div style="font-size:20px;font-weight:700;color:' + s.color + ';font-family:\'DM Mono\',monospace;flex-shrink:0">' + s.val + '</div>'
+      + '<div style="font-size:16px;font-weight:700;color:' + s.color + ';font-family:\'DM Mono\',monospace;flex-shrink:0">' + s.val + '</div>'
       + '</div>'
     ).join('');
 
