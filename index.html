@@ -492,9 +492,9 @@ function renderCF() {
   const donutCanvas = document.getElementById('cf-donut-chart');
   if (donutCanvas && (fixed + varExp + invest) > 0) {
     const donutLabels = [], donutData = [], donutColors = [];
-    if (fixed  > 0) { donutLabels.push('固定支出'); donutData.push(fixed);  donutColors.push('rgba(59,130,246,0.85)');  }
-    if (varExp > 0) { donutLabels.push('變動支出'); donutData.push(varExp); donutColors.push('rgba(139,92,246,0.85)'); }
-    if (invest > 0) { donutLabels.push('投資');     donutData.push(invest); donutColors.push('rgba(245,158,11,0.85)'); }
+    if (fixed  > 0) { donutLabels.push('固定支出'); donutData.push(fixed);  donutColors.push(CF_COLOR.fixed);      }
+    if (varExp > 0) { donutLabels.push('變動支出'); donutData.push(varExp); donutColors.push(CF_COLOR.variable);   }
+    if (invest > 0) { donutLabels.push('投資');     donutData.push(invest); donutColors.push(CF_COLOR.investment); }
 
     charts.cfDonut = new Chart(donutCanvas, {
       type: 'doughnut',
