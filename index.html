@@ -336,61 +336,45 @@ function renderCF() {
   const monthPillsHtml = months.map(m => {
     const active = m === cfMonthFilter;
     const s = active
-      ? 'padding:5px 16px;border-radius:20px;border:none;background:#3b82f6;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit'
-      : 'padding:5px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#64748b;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s';
+      ? 'padding:5px 16px;border-radius:20px;border:none;background:#3b82f6;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.02em'
+      : 'padding:5px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#94a3b8;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s';
     return '<button onclick="cfSelectMonth(\'' + m + '\')" style="' + s + '">' + m + '</button>';
   }).join('');
 
-  // ── KPI 卡片（4格）— 收入為主角深色卡 ───────────────────
+  // ── KPI 卡片（4格）──────────────────────────────────────
   const kpiItems = [
-    { type:'income',     val:income, hero:true  },
-    { type:'fixed',      val:fixed,  hero:false },
-    { type:'variable',   val:varExp, hero:false },
-    { type:'investment', val:invest, hero:false },
+    { type:'income',     val:income, label:'收入',   icon:'💚' },
+    { type:'fixed',      val:fixed,  label:'固定支出', icon:'🏠' },
+    { type:'variable',   val:varExp, label:'變動支出', icon:'🛍' },
+    { type:'investment', val:invest, label:'投資',   icon:'📈' },
   ];
   const kpiHtml = kpiItems.map(k =>
-    '<div style="'
-    + (k.hero
-        ? 'background:#0c1424;border:1px solid rgba(34,197,94,0.2);box-shadow:0 4px 24px rgba(0,0,0,0.4),0 0 0 1px rgba(34,197,94,0.05);'
-        : 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);box-shadow:0 1px 4px rgba(0,0,0,0.2);')
-    + 'border-radius:14px;padding:18px 20px">'
-    + '<div style="font-size:10px;color:' + (k.hero ? '#1e3a2e' : '#334155') + ';margin-bottom:8px;letter-spacing:.07em;font-weight:700">'
-    + CF_LABEL[k.type].toUpperCase()
-    + '</div>'
-    + '<div style="font-size:11px;color:#64748b;margin-bottom:12px;display:flex;align-items:center;gap:4px">'
-    + '<span>' + CF_ICON[k.type] + '</span>'
-    + '<span>' + (k.hero ? cfMonthFilter : CF_LABEL[k.type]) + '</span>'
-    + '</div>'
-    + '<div style="font-size:' + (k.hero ? '22' : '18') + 'px;font-weight:' + (k.hero ? '800' : '700') + ';color:' + CF_COLOR[k.type] + ';font-family:\'DM Mono\',monospace;letter-spacing:-.01em">NT$' + fN(k.val) + '</div>'
+    '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:18px 20px;transition:border-color .15s">'
+    + '<div style="font-size:11px;color:#94a3b8;margin-bottom:10px;letter-spacing:.02em">' + k.label + '</div>'
+    + '<div style="font-size:20px;font-weight:700;color:' + CF_COLOR[k.type] + ';font-family:\'DM Mono\',monospace;letter-spacing:-.01em">NT$' + fN(k.val) + '</div>'
     + '</div>'
   ).join('');
 
   // ── 淨儲蓄寬卡 ──────────────────────────────────────────
-  const saveColor   = netSave >= 0 ? '#22c55e' : '#ef4444';
-  const rateColor   = saveRate != null && saveRate >= 0.2 ? '#f59e0b' : '#94a3b8';
-  const rateLabel   = saveRate != null && saveRate >= 0.3 ? '優秀！' : saveRate != null && saveRate >= 0.2 ? '良好' : saveRate != null && saveRate >= 0 ? '偏低' : '';
+  const saveColor = netSave >= 0 ? '#22c55e' : '#ef4444';
+  const rateColor = saveRate != null && saveRate >= 0.3 ? '#22c55e' : saveRate != null && saveRate >= 0.2 ? '#f59e0b' : '#94a3b8';
+  const rateLabel = saveRate != null && saveRate >= 0.3 ? '優秀！' : saveRate != null && saveRate >= 0.2 ? '良好' : saveRate != null && saveRate >= 0 ? '偏低' : '';
   const savingsHtml =
-    // 外層：深色卡 + 微光暈
     '<div style="background:#080e1a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px 24px;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.5)">'
-    // 背景光暈
-    + '<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 60%,' + saveColor + '12 0%,transparent 65%);pointer-events:none"></div>'
-    // 標籤
-    + '<div style="font-size:9px;color:#1e293b;letter-spacing:.12em;font-weight:700;margin-bottom:20px;text-transform:uppercase">Net Savings · ' + cfMonthFilter + '</div>'
-    // 主數字
+    + '<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 60%,' + saveColor + '18 0%,transparent 65%);pointer-events:none"></div>'
+    + '<div style="font-size:10px;color:#475569;letter-spacing:.12em;font-weight:600;margin-bottom:18px;text-transform:uppercase">NET SAVINGS · ' + cfMonthFilter + '</div>'
     + '<div style="font-size:48px;font-weight:800;color:' + saveColor + ';font-family:\'DM Mono\',monospace;letter-spacing:-.03em;line-height:1;margin-bottom:20px">NT$' + fN(netSave) + '</div>'
-    // 分隔線
-    + '<div style="width:40px;height:1px;background:rgba(255,255,255,0.06);margin:0 auto 20px"></div>'
-    // 儲蓄率 + 標籤
-    + '<div style="display:inline-flex;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:50px;padding:8px 20px">'
-    +   '<div style="font-size:9px;color:#334155;letter-spacing:.08em;font-weight:700">SAVING RATE</div>'
+    + '<div style="width:40px;height:1px;background:rgba(255,255,255,0.08);margin:0 auto 20px"></div>'
+    + '<div style="display:inline-flex;align-items:center;gap:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:50px;padding:8px 20px">'
+    +   '<div style="font-size:10px;color:#64748b;letter-spacing:.08em;font-weight:600">SAVING RATE</div>'
     +   '<div style="font-size:22px;font-weight:800;color:' + rateColor + ';font-family:\'DM Mono\',monospace">' + fR(saveRate) + '</div>'
-    +   (rateLabel ? '<div style="font-size:10px;color:' + rateColor + ';font-weight:600">' + rateLabel + '</div>' : '')
+    +   (rateLabel ? '<div style="font-size:11px;color:' + rateColor + ';font-weight:600">' + rateLabel + '</div>' : '')
     + '</div>'
     + '</div>';
 
   // ── 分類細項（右側）─────────────────────────────────────
   const expTypes = ['fixed', 'variable', 'investment'];
-  const catMap   = {}; // { type: { category: total } }
+  const catMap   = {};
   md.filter(r => !cfIsType(r, 'income')).forEach(r => {
     const t = String(r[2] || '');
     const c = String(r[3] || '其他');
@@ -401,48 +385,51 @@ function renderCF() {
   const breakdownHtml = expTypes.filter(t => catMap[t]).map(t => {
     const typeTotal = Object.values(catMap[t]).reduce((s, v) => s + v, 0);
     const catRows   = Object.entries(catMap[t]).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => {
-      const pct = typeTotal > 0 ? amt / typeTotal : 0;
+      const pct  = typeTotal > 0 ? amt / typeTotal : 0;
       const barW = Math.max(4, Math.round(pct * 100));
-      return '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
-        + '<div style="font-size:12px;color:#94a3b8;flex:1;min-width:0">' + cat + '</div>'
-        + '<div style="width:56px;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;flex-shrink:0">'
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
+        + '<div style="font-size:13px;color:#cbd5e1;flex:1;min-width:0">' + cat + '</div>'
+        + '<div style="width:64px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;flex-shrink:0">'
         +   '<div style="width:' + barW + '%;height:100%;background:' + (CF_COLOR[t] || '#94a3b8') + ';border-radius:2px"></div>'
         + '</div>'
-        + '<div style="font-size:12px;color:#e2e8f0;font-family:\'DM Mono\',monospace;min-width:70px;text-align:right">NT$' + fN(amt) + '</div>'
+        + '<div style="font-size:13px;color:#e2e8f0;font-family:\'DM Mono\',monospace;min-width:76px;text-align:right;font-weight:500">NT$' + fN(amt) + '</div>'
         + '</div>';
     }).join('');
-    return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 16px;margin-bottom:10px">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-      +   '<span style="font-size:12px;font-weight:700;color:' + CF_COLOR[t] + '">' + CF_ICON[t] + ' ' + CF_LABEL[t] + '</span>'
-      +   '<span style="font-size:14px;font-weight:700;color:#e2e8f0;font-family:\'DM Mono\',monospace">NT$' + fN(typeTotal) + '</span>'
+    return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px;margin-bottom:10px">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+      +   '<span style="font-size:13px;font-weight:700;color:' + CF_COLOR[t] + '">' + CF_LABEL[t] + '</span>'
+      +   '<span style="font-size:15px;font-weight:700;color:#f1f5f9;font-family:\'DM Mono\',monospace">NT$' + fN(typeTotal) + '</span>'
       + '</div>'
       + catRows
       + '</div>';
   }).join('') || '<div class="empty" style="padding:20px">本月尚無支出記錄</div>';
 
-  // ── 明細表格 ────────────────────────────────────────────
+  // ── 明細表格：4欄（日期 / 項目類別 / 說明來源 / 金額）──
   const txRows = [...md].sort((a, b) => String(b[0]).localeCompare(String(a[0]))).map(r => {
     const type  = String(r[2] || '');
     const amt   = cfAmt(r);
     const isInc = cfIsType(r, 'income');
+    const isInv = cfIsType(r, 'investment');
     const sign  = isInc ? '+' : '−';
-    const color = isInc ? '#22c55e' : cfIsType(r, 'investment') ? '#f59e0b' : '#f1f5f9';
-    const day   = String(r[0] || '').slice(5);
-    const typeBadge = '<span style="font-size:10px;padding:2px 7px;border-radius:4px;'
-      + 'background:' + (CF_COLOR[type] || '#334155') + '20;'
-      + 'color:' + (CF_COLOR[type] || '#94a3b8') + ';'
-      + 'border:1px solid ' + (CF_COLOR[type] || '#334155') + '40">'
-      + (CF_LABEL[type] || type) + '</span>';
+    const amtColor = isInc ? '#22c55e' : isInv ? '#f59e0b' : '#f1f5f9';
+    // 日期：只取 MM-DD → 顯示 "DD日"
+    const day   = String(r[0] || '').slice(8).replace(/^0/, '') + '日';
+    // 類別（帶顏色）
+    const cat   = r[3] || '';
+    const catColor = CF_COLOR[type] || '#94a3b8';
     const collectBadge = cfIsCollect(r)
-      ? ' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25)">🏷 收藏</span>'
+      ? ' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25)">🏷</span>'
       : '';
+    // 說明來源：note (card)
+    const note  = r[5] || '';
+    const card  = r[4] || '';
+    const desc  = note ? note + (card ? '（' + card + '）' : '') : card || '—';
+
     return '<tr>'
-      + '<td class="mn" style="color:#64748b">' + day + '</td>'
-      + '<td>' + typeBadge + '</td>'
-      + '<td style="color:#94a3b8">' + (r[3] || '') + collectBadge + '</td>'
-      + '<td class="mn" style="color:' + color + ';font-weight:600;text-align:right">' + sign + 'NT$' + fN(amt) + '</td>'
-      + '<td style="font-size:11px;color:#475569">' + (r[4] || '') + '</td>'
-      + '<td style="font-size:11px;color:#64748b">' + (r[5] || '') + '</td>'
+      + '<td class="mn" style="color:#64748b;white-space:nowrap">' + day + '</td>'
+      + '<td style="font-weight:600;color:' + catColor + '">' + cat + collectBadge + '</td>'
+      + '<td style="color:#94a3b8;font-size:12px">' + desc + '</td>'
+      + '<td class="mn" style="color:' + amtColor + ';font-weight:700;text-align:right;white-space:nowrap">' + sign + 'NT$' + fN(amt) + '</td>'
       + '</tr>';
   }).join('');
 
@@ -452,73 +439,82 @@ function renderCF() {
   // ── 組合 HTML ────────────────────────────────────────────
   document.getElementById('content').innerHTML =
     // 月份 pills
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">' + monthPillsHtml + '</div>'
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px">' + monthPillsHtml + '</div>'
 
     // KPI 4格
-    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">' + kpiHtml + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">' + kpiHtml + '</div>'
+
     // 儲蓄卡
     + '<div style="margin-bottom:20px">' + savingsHtml + '</div>'
 
     // 中段：趨勢 + 細項
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
 
-    // 左：趨勢折線圖
-    + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 20px">'
-    + '<div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:14px;letter-spacing:.04em">近 ' + last6.length + ' 個月收支趨勢</div>'
+    // 左：趨勢面積圖
+    + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:18px 20px">'
+    + '<div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:4px">近 ' + last6.length + ' 個月收支趨勢</div>'
+    + '<div style="font-size:11px;color:#475569;margin-bottom:14px">● 綠色為收入 / 紫色為變動支出</div>'
     + '<div style="position:relative;height:180px"><canvas id="cf-trend-chart"></canvas></div>'
     + '</div>'
 
     // 右：類別細項
-    + '<div style="overflow-y:auto;max-height:260px">' + breakdownHtml + '</div>'
+    + '<div style="overflow-y:auto;max-height:270px">' + breakdownHtml + '</div>'
 
     + '</div>'
 
     // 明細列表
-    + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 20px">'
-    + '<div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:14px;letter-spacing:.04em">'
-    + cfMonthFilter + ' 明細 <span style="color:#334155;font-weight:400;font-size:11px">共 ' + md.length + ' 筆</span>'
+    + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:20px 22px">'
+    + '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">'
+    + '<span style="font-size:13px;color:#f1f5f9;font-weight:700">' + cfMonthFilter + ' 明細</span>'
+    + '<span style="font-size:12px;color:#475569">共 ' + md.length + ' 筆</span>'
     + '</div>'
     + (txRows
         ? '<div class="tbl-wrap"><table>'
           + '<thead><tr>'
-          + '<th style="text-align:left">日期</th>'
-          + '<th style="text-align:left">類型</th>'
-          + '<th style="text-align:left">類別</th>'
-          + '<th>金額</th>'
-          + '<th style="text-align:left">卡片</th>'
-          + '<th style="text-align:left">備註</th>'
+          + '<th style="text-align:left;color:#64748b">日期</th>'
+          + '<th style="text-align:left;color:#64748b">項目／類別</th>'
+          + '<th style="text-align:left;color:#64748b">說明／來源</th>'
+          + '<th style="color:#64748b">金額</th>'
           + '</tr></thead>'
           + '<tbody>' + txRows + '</tbody>'
           + '</table></div>'
         : '<div class="empty">本月尚無記錄</div>')
     + '</div>';
 
-  // ── 趨勢 Chart.js ────────────────────────────────────────
+  // ── 趨勢 Chart.js（面積折線）────────────────────────────
   if (last6.length) {
-    const tIncome  = last6.map(m => data.filter(r=>cfMonth(r)===m&&cfIsType(r,'income')).reduce((s,r)=>s+cfAmt(r),0));
-    const tFixed   = last6.map(m => data.filter(r=>cfMonth(r)===m&&cfIsType(r,'fixed')).reduce((s,r)=>s+cfAmt(r),0));
-    const tVar     = last6.map(m => data.filter(r=>cfMonth(r)===m&&cfIsType(r,'variable')).reduce((s,r)=>s+cfAmt(r),0));
-    const tInvest  = last6.map(m => data.filter(r=>cfMonth(r)===m&&cfIsType(r,'investment')).reduce((s,r)=>s+cfAmt(r),0));
+    const tIncome = last6.map(m => data.filter(r=>cfMonth(r)===m&&cfIsType(r,'income')).reduce((s,r)=>s+cfAmt(r),0));
+    const tVar    = last6.map(m => data.filter(r=>cfMonth(r)===m&&cfIsType(r,'variable')).reduce((s,r)=>s+cfAmt(r),0));
 
     charts.cfTrend = new Chart(document.getElementById('cf-trend-chart'), {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: last6.map(m => m.slice(5)),
         datasets: [
-          { label:'收入',   data: tIncome, backgroundColor:'rgba(34,197,94,0.75)',   stack:'income', borderRadius:3 },
-          { label:'固定',   data: tFixed,  backgroundColor:'rgba(59,130,246,0.75)',  stack:'exp',    borderRadius:0 },
-          { label:'變動',   data: tVar,    backgroundColor:'rgba(139,92,246,0.75)',  stack:'exp',    borderRadius:0 },
-          { label:'投資',   data: tInvest, backgroundColor:'rgba(245,158,11,0.75)', stack:'exp',    borderRadius:3 },
+          {
+            label:'收入', data: tIncome,
+            borderColor:'rgba(34,197,94,0.9)', borderWidth:2,
+            backgroundColor:'rgba(34,197,94,0.15)',
+            fill:true, tension:0.4, pointRadius:3,
+            pointBackgroundColor:'rgba(34,197,94,0.9)', pointBorderWidth:0
+          },
+          {
+            label:'變動支出', data: tVar,
+            borderColor:'rgba(139,92,246,0.9)', borderWidth:2,
+            backgroundColor:'rgba(139,92,246,0.12)',
+            fill:true, tension:0.4, pointRadius:3,
+            pointBackgroundColor:'rgba(139,92,246,0.9)', pointBorderWidth:0
+          }
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color:'#64748b', font:{size:10}, boxWidth:8, padding:10 } }
+          legend: { display: false }
         },
         scales: {
-          x: { ticks:{ color:'#475569', font:{size:10} }, grid:{ display:false } },
-          y: { ticks:{ color:'#475569', font:{size:10}, callback: v => v>=10000?(v/10000).toFixed(0)+'萬':v }, grid:{ color:'rgba(255,255,255,0.04)' } }
+          x: { ticks:{ color:'#475569', font:{size:10} }, grid:{ display:false }, border:{ display:false } },
+          y: { ticks:{ color:'#475569', font:{size:10}, callback: v => v>=10000?(v/10000).toFixed(0)+'萬':v }, grid:{ color:'rgba(255,255,255,0.04)' }, border:{ display:false } }
         }
       }
     });
