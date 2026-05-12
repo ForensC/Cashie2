@@ -4,14 +4,14 @@
 // ══════════════════════════════════════════════════════════════
 
 const TELEGRAM_TOKEN = '8584996875:AAGaWTZqwqYZlUonZzQe5SVd1lXGmD6qKwM';
-const GEMINI_API_KEY = 'AIzaSyDDndBCJr3Xa3iOLO9u0aAp0QwSMAytFd4'; // ← 貼上 AI Studio Key
+const GEMINI_API_KEY = 'AIzaSyCyOj_PnI2FNokoiq9KJNMEhfc0US6lkXs';
 const SHEET_ID       = '1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg';
 const SHEET_NAME     = 'cashflow';
 const TELEGRAM_API   = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN;
 const GEMINI_MODEL   = 'gemini-2.0-flash-lite';
 const EXEC_URL       = 'https://script.google.com/macros/s/AKfycbwi7jfwTzOkw4CwEYVO_nHgCsZBKyfSDmgq5A07KjjxvfEBKpSEOMWt_lBjbgcV5nOa/exec';
 
-const ALLOWED_USER_ID = 0; // ← 填入你的 Telegram ID（@userinfobot 取得）
+const ALLOWED_USER_ID = 1041361870;
 
 // ── 規則解析表（Gemini 不可用時的備援）──────────────────────
 const CATEGORY_RULES = [
@@ -48,27 +48,41 @@ function doPost(e) {
     const msg      = body.message;
     if (!msg) return ok();
 
-    // ── 去重：同一則訊息只處理一次，防止 Telegram 重送造成重複記帳 ──
-    const props  = PropertiesService.getScriptProperties();
-    const lastId = parseInt(props.getProperty('lastUpdateId') || '0');
-    if (updateId && updateId <= lastId) {
-      Logger.log('重複訊息，略過 update_id=' + updateId);
+    // ── 去重 + 分散式鎖（防止並發競爭造成重複記帳或卡死）────────
+    // LockService 確保同一時間只有一個 doPost 在執行去重判斷
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(5000)) {
+      // 5 秒內拿不到鎖 → 另一筆正在處理，回 ok 讓 Telegram 稍後重試
+      Logger.log('lock timeout, skip update_id=' + updateId);
       return ok();
     }
-    if (updateId) props.setProperty('lastUpdateId', String(updateId));
+    try {
+      const props  = PropertiesService.getScriptProperties();
+      const lastId = parseInt(props.getProperty('lastUpdateId') || '0');
+      if (updateId && updateId <= lastId) {
+        Logger.log('重複訊息，略過 update_id=' + updateId);
+        return ok();
+      }
+      if (updateId) props.setProperty('lastUpdateId', String(updateId));
+    } finally {
+      lock.releaseLock(); // 去重完成立刻釋放，Gemini 不佔鎖
+    }
 
+    // ── 權限檢查 ──────────────────────────────────────────────
     if (ALLOWED_USER_ID !== 0 && msg.from.id !== ALLOWED_USER_ID) return ok();
 
     const chatId = msg.chat.id;
     const text   = (msg.text || '').trim();
     if (!text) return ok();
 
+    // ── 指令 ──────────────────────────────────────────────────
     if (text === '/start' || text === '/help') {
       sendMsg(chatId,
         '👋 嗨！我是你的 Cashie 記帳機器人\n\n' +
         '直接輸入消費就好：\n' +
         '• 午餐 200\n• 房租 8000 現金\n• 薪資 60000\n• 買了簽名球 1500 台新\n\n' +
-        '📊 查詢：\n• 「今天」→ 今日摘要\n• 「本月」→ 月度摘要'
+        '📊 查詢：\n• 「今天」→ 今日摘要\n• 「本月」→ 月度摘要\n\n' +
+        '🗑️ 「刪除上一筆」→ 刪除最新一筆記錄'
       );
       return ok();
     }
@@ -76,9 +90,14 @@ function doPost(e) {
     if (text === '今天' || text === '今日') { sendDailySummary(chatId); return ok(); }
     if (text === '本月' || text === '這個月') { sendMonthlySummary(chatId); return ok(); }
 
-    // 解析：規則解析（Gemini 配額恢復後自動切換）
+    // ── 防呆：刪除上一筆 ──────────────────────────────────────
+    if (text === '刪除上一筆' || text === '刪除' || text === '/delete') {
+      deleteLastRow(chatId);
+      return ok();
+    }
+
+    // ── 解析：先 Gemini，失敗退回本地規則 ─────────────────────
     var parsed = parseWithGemini(text);
-    var usedAI = !!parsed;
     if (!parsed) parsed = parseLocally(text);
 
     if (!parsed || !parsed.amount) {
@@ -100,6 +119,7 @@ function doPost(e) {
 
     if (parsed.note)             reply += '\n📝 ' + parsed.note;
     if (parsed.collectible_flag) reply += '\n🏷️ 已標記為收藏品';
+    reply += '\n\n如需刪除請回覆「刪除上一筆」';
 
     sendMsg(chatId, reply);
 
@@ -177,6 +197,25 @@ function writeToSheet(data) {
     data.date, data.amount, data.type, data.category,
     data.card, data.note||'', data.collectible_flag ? 'TRUE' : 'FALSE'
   ]);
+}
+
+// ── 刪除最後一筆 ──────────────────────────────────────────────
+function deleteLastRow(chatId) {
+  try {
+    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
+    const last  = sheet.getLastRow();
+    if (last <= 1) { sendMsg(chatId, '📭 沒有可以刪除的記錄'); return; }
+    const row = sheet.getRange(last, 1, 1, 7).getValues()[0];
+    sheet.deleteRow(last);
+    sendMsg(chatId,
+      '🗑️ 已刪除：\n' +
+      '📅 ' + String(row[0]).slice(0,10) + '\n' +
+      '📂 ' + row[3] + '  💵 NT$' + Number(row[1]).toLocaleString()
+    );
+  } catch(err) {
+    Logger.log('deleteLastRow err: ' + err);
+    sendMsg(chatId, '❌ 刪除失敗，請稍後再試');
+  }
 }
 
 // ── 今日摘要 ──────────────────────────────────────────────────
