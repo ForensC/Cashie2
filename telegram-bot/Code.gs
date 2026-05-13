@@ -1,7 +1,10 @@
 // ══════════════════════════════════════════════════════════════
 //  Cashie 記帳機器人 — Google Apps Script
-//  解析策略：本地規則（快速）→ Gemini（僅限模糊輸入）
-//  速度優先：CacheService 去重（記憶體級速度），無 LockService
+//  速度設計：
+//  • CacheService 去重（記憶體，~10ms）
+//  • UrlFetchApp.fetchAll() 並行：Sheets 寫入 + Telegram 回覆同時執行
+//  • Gemini 超時 1.5s（防止拖慢主流程）
+//  目標：所有執行 < 1.5s，Telegram 不觸發重試
 // ══════════════════════════════════════════════════════════════
 
 const TELEGRAM_TOKEN  = '8584996875:AAGaWTZqwqYZlUonZzQe5SVd1lXGmD6qKwM';
@@ -37,11 +40,6 @@ const CARD_KEYWORDS = ['台新','玉山','國泰','中信','聯邦','永豐','�
 
 // ══════════════════════════════════════════════════════════════
 //  Webhook 入口
-//
-//  速度設計：
-//  • CacheService 去重（記憶體，~10ms，5 分鐘 TTL）
-//  • 無 LockService（移除最大延遲來源）
-//  • 目標執行時間 < 2.5 秒，確保 Telegram 在 5 秒內收到 200
 // ══════════════════════════════════════════════════════════════
 function doPost(e) {
   var chatId = null;
@@ -51,12 +49,12 @@ function doPost(e) {
     const msg      = body.message;
     if (!msg) return ok();
 
-    // ── 去重（CacheService，記憶體速度）────────────────────
+    // ── 去重（CacheService，記憶體，~10ms）──────────────────
     if (updateId) {
       const cache = CacheService.getScriptCache();
       const key   = 'uid_' + updateId;
-      if (cache.get(key) !== null) return ok();   // 已處理，靜默跳過
-      cache.put(key, '1', 300);                    // 標記為已處理，5 分鐘 TTL
+      if (cache.get(key) !== null) return ok();
+      cache.put(key, '1', 300);
     }
 
     // ── 權限 ────────────────────────────────────────────────
@@ -84,7 +82,7 @@ function doPost(e) {
       return ok();
     }
 
-    // ── 解析：本地優先，類別為「其他」才用 Gemini ───────────
+    // ── 解析：本地優先，類別為「其他」才用 Gemini（限 1.5s）─
     var parsed = parseLocally(text);
     if (parsed && parsed.category === '其他') {
       var geminiResult = parseWithGemini(text);
@@ -96,10 +94,7 @@ function doPost(e) {
       return ok();
     }
 
-    // ── 寫入 Sheets ─────────────────────────────────────────
-    writeToSheet(parsed);
-
-    // ── 回覆使用者 ──────────────────────────────────────────
+    // ── 回覆文字 ────────────────────────────────────────────
     const E = { income:'💚', fixed:'🏠', variable:'🛍️', investment:'📈' };
     const L = { income:'收入', fixed:'固定支出', variable:'變動支出', investment:'投資' };
     var reply =
@@ -111,7 +106,9 @@ function doPost(e) {
     if (parsed.note)             reply += '\n📝 ' + parsed.note;
     if (parsed.collectible_flag) reply += '\n🏷️ 已標記為收藏品';
     reply += '\n\n如需刪除請回覆「刪除上一筆」';
-    sendMsg(chatId, reply);
+
+    // ── 寫入 Sheets + 回覆 Telegram（並行，節省 ~500ms）────
+    writeAndReply(parsed, chatId, reply);
 
   } catch (err) {
     Logger.log('doPost error: ' + err.toString());
@@ -120,6 +117,46 @@ function doPost(e) {
     }
   }
   return ok();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  並行：Sheets 寫入 + Telegram 回覆同時執行
+//  fetchAll() 是真正的並行，時間 = max(Sheets, Telegram) 而非相加
+// ══════════════════════════════════════════════════════════════
+function writeAndReply(data, chatId, replyText) {
+  const token = ScriptApp.getOAuthToken();
+  const row   = [
+    data.date, data.amount, data.type, data.category,
+    data.card, data.note||'', data.collectible_flag ? 'TRUE' : 'FALSE'
+  ];
+
+  const results = UrlFetchApp.fetchAll([
+    // ① 寫入 Google Sheets（REST API）
+    {
+      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
+           '/values/' + encodeURIComponent(SHEET_NAME + '!A:G') +
+           ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
+      method: 'post',
+      headers: { 'Authorization': 'Bearer ' + token },
+      contentType: 'application/json',
+      payload: JSON.stringify({ values: [row] }),
+      muteHttpExceptions: true
+    },
+    // ② 傳送 Telegram 回覆
+    {
+      url: TELEGRAM_API + '/sendMessage',
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ chat_id: chatId, text: replyText }),
+      muteHttpExceptions: true
+    }
+  ]);
+
+  results.forEach(function(r, i) {
+    if (r.getResponseCode() !== 200) {
+      Logger.log('writeAndReply[' + i + '] error ' + r.getResponseCode() + ': ' + r.getContentText().slice(0,300));
+    }
+  });
 }
 
 // ── 本地規則解析（< 5ms）────────────────────────────────────
@@ -143,7 +180,7 @@ function parseLocally(text) {
   return { date:today, amount:amount, type:type, category:category, card:card, note:note, collectible_flag:collectible };
 }
 
-// ── Gemini 解析（僅限模糊輸入，deadline 4s）────────────────
+// ── Gemini 解析（超時限 1.5s，避免拖慢整體）────────────────
 function parseWithGemini(text) {
   const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const prompt =
@@ -156,7 +193,7 @@ function parseWithGemini(text) {
       'https://generativelanguage.googleapis.com/v1/models/' + GEMINI_MODEL + ':generateContent?key=' + GEMINI_API_KEY,
       { method:'post', contentType:'application/json',
         payload: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.1,maxOutputTokens:200} }),
-        muteHttpExceptions:true, deadline:4 }
+        muteHttpExceptions:true, deadline:1.5 }   // ← 從 4s 降到 1.5s
     );
     if (res.getResponseCode() !== 200) return null;
     const raw     = (JSON.parse(res.getContentText()).candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
@@ -164,16 +201,6 @@ function parseWithGemini(text) {
     if (!cleaned || cleaned === 'null') return null;
     return JSON.parse(cleaned);
   } catch(err) { Logger.log('Gemini: ' + err); return null; }
-}
-
-// ── 寫入 Sheets ──────────────────────────────────────────────
-function writeToSheet(data) {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-  sheet.appendRow([
-    data.date, data.amount, data.type, data.category,
-    data.card, data.note||'', data.collectible_flag ? 'TRUE' : 'FALSE'
-  ]);
-  SpreadsheetApp.flush();
 }
 
 // ── 刪除最後一筆 ──────────────────────────────────────────────
@@ -234,7 +261,7 @@ function sendMonthlySummary(chatId) {
   sendMsg(chatId, msg);
 }
 
-// ── 傳送訊息 ──────────────────────────────────────────────────
+// ── 傳送訊息（用於指令回覆與錯誤通知）──────────────────────
 function sendMsg(chatId, text) {
   UrlFetchApp.fetch(TELEGRAM_API+'/sendMessage', {
     method:'post', contentType:'application/json',
