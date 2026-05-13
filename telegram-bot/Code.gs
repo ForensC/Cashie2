@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 //  Cashie 記帳機器人 — Google Apps Script
 //  解析策略：本地規則（快速）→ Gemini（僅限模糊輸入）
-//  並發策略：doPost 層單一大鎖，序列化所有執行，永不拋出
+//  速度優先：CacheService 去重（記憶體級速度），無 LockService
 // ══════════════════════════════════════════════════════════════
 
 const TELEGRAM_TOKEN  = '8584996875:AAGaWTZqwqYZlUonZzQe5SVd1lXGmD6qKwM';
@@ -36,59 +36,28 @@ const CATEGORY_RULES = [
 const CARD_KEYWORDS = ['台新','玉山','國泰','中信','聯邦','永豐','一卡通','悠遊卡','Line Pay','linepay','街口','Apple Pay','JCB'];
 
 // ══════════════════════════════════════════════════════════════
-//  去重輔助（在大鎖保護下呼叫，不需自己加鎖）
-// ══════════════════════════════════════════════════════════════
-function isDuplicate(updateId) {
-  if (!updateId) return false;
-  const props = PropertiesService.getScriptProperties();
-  const ids   = JSON.parse(props.getProperty('processedIds') || '[]');
-  return ids.indexOf(updateId) !== -1;
-}
-
-function markProcessed(updateId) {
-  if (!updateId) return;
-  const props = PropertiesService.getScriptProperties();
-  const ids   = JSON.parse(props.getProperty('processedIds') || '[]');
-  ids.push(updateId);
-  if (ids.length > 50) ids.splice(0, ids.length - 50);
-  props.setProperty('processedIds', JSON.stringify(ids));
-}
-
-// ══════════════════════════════════════════════════════════════
 //  Webhook 入口
 //
-//  並發策略：
-//  • 在 doPost 最頂層取得單一腳本鎖（waitLock 25s）
-//  • 鎖保護整個流程：去重 + 解析 + 寫入
-//  • 永不拋出例外 → Apps Script 永遠回傳 200 → 不產生 302
-//  • 第二則訊息靜待第一則完成後再執行
+//  速度設計：
+//  • CacheService 去重（記憶體，~10ms，5 分鐘 TTL）
+//  • 無 LockService（移除最大延遲來源）
+//  • 目標執行時間 < 2.5 秒，確保 Telegram 在 5 秒內收到 200
 // ══════════════════════════════════════════════════════════════
 function doPost(e) {
   var chatId = null;
-  const lock = LockService.getScriptLock();
-
-  // 等待前一筆完成（最多 25 秒）；幾乎不可能超時（正常 < 5s）
-  try {
-    lock.waitLock(25000);
-  } catch (lockErr) {
-    // 極端罕見：25 秒都等不到，記 log 後直接回 200
-    // （不拋出 → 不觸發 302 → 不產生 Telegram 重試風暴）
-    Logger.log('Lock wait timeout: ' + lockErr);
-    return ok();
-  }
-
   try {
     const body     = JSON.parse(e.postData.contents);
     const updateId = body.update_id;
     const msg      = body.message;
     if (!msg) return ok();
 
-    // ── 去重（鎖內安全讀寫）────────────────────────────────
-    if (isDuplicate(updateId)) {
-      Logger.log('Duplicate update_id: ' + updateId + ', skipping.');
-      return ok();
+    // ── 去重（CacheService，記憶體速度）────────────────────
+    if (updateId) {
+      const cache = CacheService.getScriptCache();
+      const key   = 'uid_' + updateId;
+      if (cache.get(key) !== null) return ok();   // 已處理，靜默跳過
+      cache.put(key, '1', 300);                    // 標記為已處理，5 分鐘 TTL
     }
-    markProcessed(updateId);
 
     // ── 權限 ────────────────────────────────────────────────
     if (ALLOWED_USER_ID !== 0 && msg.from.id !== ALLOWED_USER_ID) return ok();
@@ -127,9 +96,10 @@ function doPost(e) {
       return ok();
     }
 
-    // ── 寫入 Sheets（鎖保護中，不需再加鎖）────────────────
+    // ── 寫入 Sheets ─────────────────────────────────────────
     writeToSheet(parsed);
 
+    // ── 回覆使用者 ──────────────────────────────────────────
     const E = { income:'💚', fixed:'🏠', variable:'🛍️', investment:'📈' };
     const L = { income:'收入', fixed:'固定支出', variable:'變動支出', investment:'投資' };
     var reply =
@@ -144,18 +114,15 @@ function doPost(e) {
     sendMsg(chatId, reply);
 
   } catch (err) {
-    // 任何錯誤都不再拋出（防止 302），記 log 並通知使用者
     Logger.log('doPost error: ' + err.toString());
     if (chatId) {
       try { sendMsg(chatId, '❌ 發生錯誤，請稍後再試\n(' + err.message + ')'); } catch(e2) {}
     }
-  } finally {
-    lock.releaseLock();
   }
   return ok();
 }
 
-// ── 本地規則解析（< 50ms，永遠可用）────────────────────────
+// ── 本地規則解析（< 5ms）────────────────────────────────────
 function parseLocally(text) {
   const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const amtMatch = text.match(/\d[\d,]*/);
@@ -199,7 +166,7 @@ function parseWithGemini(text) {
   } catch(err) { Logger.log('Gemini: ' + err); return null; }
 }
 
-// ── 寫入 Sheets（在大鎖保護下執行，不需再加鎖）────────────
+// ── 寫入 Sheets ──────────────────────────────────────────────
 function writeToSheet(data) {
   const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
   sheet.appendRow([
