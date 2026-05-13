@@ -3,151 +3,175 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>個人財務儀表板</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<title>FORICHES / FINANCE.OS</title>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Noto+Sans+TC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1117;--bg2:#0f172a;--bg3:#1e293b;
-  --text:#f1f5f9;--text2:#94a3b8;--text3:#64748b;
-  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);
-  --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;
-  --r:10px;--rl:16px;
+  --bg: oklch(0.745 0.013 240);
+  --bg-2: oklch(0.71 0.014 240);
+  --ink: #0d0d10;
+  --ink-2: #161620;
+  --ink-3: #22222c;
+  --line: #2a2a36;
+  --cream: #ece7dc;
+  --cream-2: #d9d3c4;
+  --paper: #f4efe3;
+  --signal: oklch(0.62 0.22 25);
+  --signal-2: oklch(0.56 0.22 25);
+  --green: oklch(0.72 0.17 145);
+  --amber: oklch(0.78 0.16 78);
+  --blue: #2b6fbd;
 }
-body{font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+html,body{background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+body{background-image:
+  radial-gradient(circle at 12% 8%, oklch(0.78 0.014 240 / 0.6), transparent 40%),
+  radial-gradient(circle at 90% 92%, oklch(0.68 0.016 240 / 0.5), transparent 45%);}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2a2a36;border-radius:4px}
 input:focus{outline:none}
+.display{font-family:'Big Shoulders Display',sans-serif;font-weight:800;letter-spacing:.005em;line-height:.9;text-transform:uppercase}
+.mono{font-family:'JetBrains Mono',monospace}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes blink{50%{opacity:.2}}
 
-/* Header */
-#hd{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-#hd-l{display:flex;align-items:center;gap:10px}
-#hd-l h1{font-size:15px;font-weight:800;letter-spacing:-.02em;font-family:'Syne',sans-serif}
-#hd-l small{font-size:11px;color:var(--text3)}
-#hd-r{display:flex;align-items:center;gap:8px}
-#sync-btn{padding:5px 12px;border-radius:8px;border:1px solid #334155;background:transparent;cursor:pointer;font-size:11px;color:var(--text2);font-family:inherit;display:flex;align-items:center;gap:5px;transition:all .15s}
-#sync-btn:hover{background:var(--bg3);color:var(--text)}
-#sync-btn.loading{opacity:.6;pointer-events:none}
-#sync-time{font-size:11px;color:var(--text3)}
-.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;flex-shrink:0}
+/* shared atoms */
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;background:var(--cream);color:var(--ink);font-size:11px;font-weight:600;letter-spacing:.14em;border:1px solid rgba(0,0,0,.12)}
+.chip.dark{background:var(--ink);color:var(--cream);border-color:rgba(255,255,255,.1)}
+.chip .star{color:var(--signal);font-size:10px}
+.pill-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;background:var(--ink);color:var(--cream);font-size:12px;letter-spacing:.12em;font-weight:600;border:none;cursor:pointer;transition:all .15s ease;font-family:inherit}
+.pill-btn:hover{background:var(--signal);color:#fff;transform:translateY(-1px)}
+.pill-btn.alt{background:transparent;color:var(--ink);border:1px solid rgba(13,13,16,.25)}
+.pill-btn.alt:hover{background:var(--ink);color:var(--cream)}
+.circle-btn{width:42px;height:42px;border-radius:50%;background:var(--ink);color:var(--cream);border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s ease;font-size:18px}
+.circle-btn:hover{background:var(--signal);color:#fff;transform:rotate(180deg)}
 
-/* Layout */
-#wrap{max-width:960px;margin:0 auto;padding:20px 16px}
+/* HEADER */
+#hd{padding:20px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;max-width:1280px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:14px}
+.brand .logo{font-family:'Big Shoulders Display',sans-serif;font-size:30px;font-weight:800;color:var(--ink);letter-spacing:.02em;line-height:1}
+.brand .logo span.dot{color:var(--signal)}
+.brand .sub{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;opacity:.55;padding-left:14px;border-left:1px solid rgba(13,13,16,.2)}
+.head-r{display:flex;align-items:center;gap:10px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;flex-shrink:0}
+.sync-time{font-size:10px;letter-spacing:.14em;color:var(--ink);opacity:.55;font-family:'JetBrains Mono',monospace}
 
-/* Status */
-#status{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12px;color:#93c5fd;display:none;align-items:center;gap:8px}
-#status.err{background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.25);color:#fca5a5}
+/* TABS */
+#wrap{max-width:1280px;margin:0 auto;padding:0 22px 60px}
+.tabline{display:inline-flex;padding:4px;border-radius:999px;background:rgba(13,13,16,.08);border:1px solid rgba(13,13,16,.1);margin-bottom:18px;flex-wrap:wrap}
+.tab{padding:10px 22px;border-radius:999px;background:transparent;border:none;cursor:pointer;font-family:'Big Shoulders Display',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:15px;color:var(--ink);opacity:.55;transition:all .18s ease;font-family:'Big Shoulders Display',sans-serif}
+.tab.on{background:var(--ink);color:var(--cream);opacity:1}
+.tab .zh{font-family:'Noto Sans TC',sans-serif;margin-left:8px;letter-spacing:.04em;font-size:11px;opacity:.7}
 
-/* Tabs — pill capsule */
-.tabs{display:flex;gap:4px;margin-bottom:28px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:50px;padding:4px;width:fit-content}
-.tab{padding:7px 18px;border:none;border-radius:50px;background:transparent;cursor:pointer;font-size:13px;color:var(--text3);font-family:inherit;transition:all .2s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
-.tab:hover{color:var(--text2);background:rgba(255,255,255,0.04)}
-.tab.on{background:var(--bg3);color:var(--text);font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,0.4)}
+/* STATUS */
+#status{display:none;align-items:center;gap:10px;padding:12px 18px;border-radius:14px;margin-bottom:18px;background:var(--ink);color:var(--cream);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em}
+#status.err{background:var(--signal);color:#fff}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 
-/* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
-.kpi{background:var(--bg2);border:1px solid rgba(255,255,255,0.07);border-radius:var(--rl);padding:20px 22px;box-shadow:0 2px 12px rgba(0,0,0,0.25)}
-.kpi-l{font-size:12px;color:var(--text3);letter-spacing:.06em;margin-bottom:8px}
-.kpi-v{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:-.02em}
-.kpi-s{font-size:12px;color:var(--text3);margin-top:4px}
-.kv-def{color:var(--text)}.kv-pos{color:var(--green)}.kv-neg{color:var(--red)}.kv-amb{color:var(--amber)}
+/* DARK CARD */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px}
+.kpi{background:var(--ink);color:var(--cream);border-radius:24px;padding:22px 24px;position:relative;overflow:hidden}
+.kpi.cream{background:var(--cream);color:var(--ink)}
+.kpi-label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;opacity:.55;margin-bottom:10px}
+.kpi-value{font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:42px;line-height:.9;letter-spacing:0}
+.kpi-sub{font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.6;margin-top:8px;letter-spacing:.05em}
 
-/* Cards */
-.card{background:var(--bg2);border:1px solid rgba(255,255,255,0.07);border-radius:var(--rl);padding:20px;margin-bottom:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.2)}
-.card-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-.card-t{font-size:13px;color:var(--text3)}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:580px){.two-col{grid-template-columns:1fr}}
-
-/* Table */
+/* TABLE */
+.section{border-radius:24px;overflow:hidden;margin-bottom:14px}
+.section.dark{background:var(--ink);color:var(--cream)}
+.section.cream{background:var(--cream);color:var(--ink)}
+.section-hd{padding:22px 26px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;border-bottom:1px solid rgba(255,255,255,.05)}
+.section.cream .section-hd{border-bottom-color:rgba(13,13,16,.08)}
+.section-title{font-family:'Big Shoulders Display',sans-serif;font-size:26px;font-weight:800;letter-spacing:.005em;line-height:1}
+.section-sub{font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.55;margin-top:4px;letter-spacing:.1em}
 .tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{padding:10px 14px;text-align:right;font-size:11px;font-weight:500;color:var(--text3);border-bottom:1px solid #1e293b;white-space:nowrap;background:rgba(0,0,0,0.2);letter-spacing:.04em}
-th:first-child{text-align:left}
-td{padding:12px 14px;border-bottom:1px solid #0f172a;text-align:right;color:var(--text);vertical-align:middle}
-td:first-child{text-align:left}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,0.025)}
-tr:nth-child(even) td{background:rgba(255,255,255,0.012)}
-.mn{font-family:'DM Mono',monospace}
-.pos{color:var(--green);font-family:'DM Mono',monospace}
-.neg{color:var(--red);font-family:'DM Mono',monospace}
-.amb{color:var(--amber);font-family:'DM Mono',monospace}
-.blu{color:var(--blue);font-family:'DM Mono',monospace;font-weight:700}
+table.t{width:100%;border-collapse:collapse;font-size:13px;min-width:680px}
+table.t th{text-align:left;padding:14px 16px;font-weight:500;letter-spacing:.1em;font-size:10px;font-family:'JetBrains Mono',monospace;opacity:.55;white-space:nowrap}
+table.t th .zh{display:block;font-family:'Noto Sans TC';font-size:9px;opacity:.6;font-weight:400;margin-top:2px}
+table.t td{padding:16px;border-top:1px solid rgba(255,255,255,.05);vertical-align:middle}
+.section.cream table.t td{border-top-color:rgba(13,13,16,.08)}
+table.t tr:hover td{background:rgba(255,255,255,.03)}
+.section.cream table.t tr:hover td{background:rgba(13,13,16,.03)}
+.mn{font-family:'JetBrains Mono',monospace}
+.pos{color:var(--green);font-family:'JetBrains Mono',monospace}
+.neg{color:var(--signal);font-family:'JetBrains Mono',monospace}
+.amb{color:var(--amber);font-family:'JetBrains Mono',monospace}
+.code{font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:22px;letter-spacing:.01em}
 
 /* Badge */
-.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(255,255,255,0.06);color:var(--text2);border:1px solid var(--border2)}
+.mbadge{display:inline-flex;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:3px 9px;letter-spacing:.08em;color:#fff}
 
-/* Chart */
-.chart-wrap{position:relative;height:220px}
+.empty{text-align:center;padding:40px;font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.55;letter-spacing:.12em}
+.dot-grid{background-image:radial-gradient(currentColor 1px,transparent 1px);background-size:10px 10px;opacity:.45}
 
-/* Misc */
-.empty{text-align:center;padding:40px;color:var(--text3);font-size:13px}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid #1e293b;border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
-.note{font-size:11px;color:var(--text3);margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)}
+/* Ticker marquee */
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ticker-wrap{overflow:hidden;mask-image:linear-gradient(to right,transparent,#000 5%,#000 95%,transparent)}
+.ticker{display:inline-flex;animation:ticker 60s linear infinite;white-space:nowrap}
+.ticker.slow{animation-duration:90s}
+.ticker > div{padding-right:48px;display:inline-flex;gap:18px;align-items:center}
 
-/* Collection card gallery */
-.coll-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;margin-bottom:20px}
-.coll-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
-.coll-card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,0.2);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
-.coll-img{height:156px;overflow:hidden;background:#0a0d14;display:flex;align-items:center;justify-content:center}
-.coll-img img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
-.coll-card:hover .coll-img img{transform:scale(1.04)}
-.coll-body{padding:11px 12px}
-.coll-search{width:100%;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:9px 14px;color:#f1f5f9;font-size:13px;font-family:inherit;margin-bottom:14px;transition:border-color .15s}
-.coll-search:focus{border-color:#475569}
-.coll-search::placeholder{color:#475569}
-/* Collection layout wrapper */
-#coll-wrapper{display:flex;gap:20px;align-items:flex-start}
-#coll-main{flex:1;min-width:0}
-/* Side detail panel */
-#coll-panel{width:0;overflow:hidden;transition:width .28s cubic-bezier(.4,0,.2,1);flex-shrink:0}
-#coll-panel.open{width:300px}
-#coll-panel-inner{width:300px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow-y:auto;max-height:calc(100vh - 120px);position:sticky;top:76px}
-.coll-card.selected{border-color:var(--green);box-shadow:0 0 0 2px rgba(34,197,94,0.25)}
-/* 移除舊 Modal */
-#coll-modal{display:none!important}
+/* Scale ticks (vertical bars next to vault label) */
+.scale-ticks{display:flex;flex-direction:column;gap:6px}
+.scale-ticks span{display:block;height:14px;background:var(--cream);border-radius:1px;font-size:9px;color:var(--ink);padding-left:4px;font-family:'JetBrains Mono',monospace;line-height:14px}
+.scale-ticks span:nth-child(odd){background:var(--cream);color:var(--ink)}
+.scale-ticks span.lit{background:var(--signal);color:#fff}
+.scale-ticks.dark span{background:var(--ink);color:var(--cream)}
+.scale-ticks.dark span:nth-child(odd){background:var(--cream);color:var(--ink)}
+
+/* Corner brackets */
+.bracket{position:relative}
+.bracket::before,.bracket::after{content:'';position:absolute;width:14px;height:14px;border:1.5px solid currentColor}
+.bracket::before{top:8px;left:8px;border-right:0;border-bottom:0}
+.bracket::after{bottom:8px;right:8px;border-left:0;border-top:0}
+
+/* Big stamp text */
+.stamp{font-family:'Big Shoulders Display',sans-serif;font-weight:800;letter-spacing:.005em;line-height:.85;text-transform:uppercase}
+
+/* Spark sticks */
+.sparks{display:flex;align-items:flex-end;gap:3px;height:36px}
+.sparks span{width:6px;background:var(--signal);border-radius:1px;display:block;transition:height .3s}
+
+/* Subtle blink */
+@keyframes softBlink{0%,100%{opacity:1}50%{opacity:.4}}
+.blink{animation:softBlink 1.8s infinite}
 </style>
 </head>
 <body>
 
-<div id="hd">
-  <div id="hd-l">
+<header id="hd">
+  <div class="brand">
+    <div class="logo">FORICHES<span class="dot">/</span>OS<span class="dot">.</span></div>
+    <div class="sub">PERSONAL.FINANCE.COMMAND</div>
+  </div>
+  <div class="head-r">
     <div class="live-dot"></div>
-    <div>
-      <h1>個人財務儀表板</h1>
-      <small>資料來源：Google Sheets</small>
-    </div>
+    <span class="sync-time" id="sync-time">SYNCING...</span>
+    <button class="circle-btn" id="sync-btn" title="重新整理" onclick="onRefresh()">↻</button>
   </div>
-  <div id="hd-r">
-    <span id="sync-time"></span>
-    <button id="sync-btn" onclick="onRefresh()">
-      <span class="spin" id="btn-spin" style="display:none"></span>
-      <span>重新整理</span>
-    </button>
-  </div>
-</div>
+</header>
 
 <div id="wrap">
   <div id="status"></div>
-  <div class="tabs">
-    <button class="tab on" data-tab="passive"><span>🏛</span>被動配置</button>
-    <button class="tab" data-tab="active"><span>📈</span>主動投資</button>
-    <button class="tab" data-tab="cf"><span>💳</span>現金流</button>
-    <button class="tab" data-tab="coll"><span>🗂</span>收藏</button>
-  </div>
-  <div id="passive-root"></div>
-  <div id="content" style="display:none"><div class="empty"><span class="spin"></span> 載入中...</div></div>
-</div>
-<div id="coll-modal"></div>
 
-<!-- ── Non-passive tab logic ───────────────────────────────── -->
+  <div class="tabline">
+    <button class="tab on" data-tab="passive">PASSIVE<span class="zh">/ 被動配置</span></button>
+    <button class="tab" data-tab="active">ACTIVE<span class="zh">/ 主動投資</span></button>
+    <button class="tab" data-tab="cf">CASHFLOW<span class="zh">/ 現金流</span></button>
+    <button class="tab" data-tab="coll">VAULT<span class="zh">/ 收藏</span></button>
+  </div>
+
+  <div id="passive-root"></div>
+  <div id="content" style="display:none"><div class="empty"><span class="spin"></span> LOADING...</div></div>
+</div>
+
+<!-- shared helpers -->
 <script>
 const SHEET_ID      = '1IKi0HiVDa8UmPwEgU9zQ5RJ78UwPWZJFtwMkABTJKfs';
 const COLL_SHEET_ID = '1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg';
@@ -174,20 +198,15 @@ async function fetchSheet(name, sid = SHEET_ID) {
 }
 
 const charts = {};
-function destroyCharts() {
-  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
-  Object.keys(charts).forEach(k => delete charts[k]);
+function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); Object.keys(charts).forEach(k=>delete charts[k]); }
+function showStatus(msg, isErr=false){
+  const el=document.getElementById('status');
+  el.style.display='flex'; el.className=isErr?'err':'';
+  el.innerHTML = isErr ? '⚠ ' + msg : '<span class="spin"></span> ' + msg;
 }
+function hideStatus(){ document.getElementById('status').style.display='none'; }
 
-function showStatus(msg, isErr=false) {
-  const el = document.getElementById('status');
-  el.style.display = 'flex'; el.className = isErr ? 'err' : '';
-  el.innerHTML = isErr ? `⚠ ${msg}` : `<span class="spin"></span> ${msg}`;
-}
-function hideStatus() { document.getElementById('status').style.display = 'none'; }
-
-let currentTab     = 'passive';
-let cfMonthFilter  = '';   // 現金流：選中月份 "YYYY-MM"
+let currentTab = 'passive';
 
 document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
@@ -205,32 +224,23 @@ document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () =>
 }));
 
 function onRefresh() {
-  if (currentTab === 'passive') {
-    if (window.__passiveReload) window.__passiveReload();
-    return;
-  }
-  const btn = document.getElementById('sync-btn');
-  const spin = document.getElementById('btn-spin');
-  btn.classList.add('loading'); spin.style.display = 'inline-block';
+  if (currentTab === 'passive') { if (window.__passiveReload) window.__passiveReload(); return; }
   Object.keys(cache).forEach(k => delete cache[k]);
-  showStatus('正在從 Google Sheets 讀取資料...');
+  showStatus('SYNCING FROM GOOGLE SHEETS...');
   Promise.all([
     fetchSheet(SHEETS.active),
     fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
     fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
     fetchSheet(SHEETS.coll,    COLL_SHEET_ID),
     fetchSheet(SHEETS.collSeries, COLL_SHEET_ID),
-  ])
-    .then(() => {
-      hideStatus();
-      document.getElementById('sync-time').textContent = '更新於 ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
-      renderTab();
-    })
-    .catch(e => {
-      showStatus('無法讀取試算表。錯誤：' + e.message, true);
-      document.getElementById('content').innerHTML = '<div class="empty">讀取失敗，請按「重新整理」重試</div>';
-    })
-    .finally(() => { btn.classList.remove('loading'); spin.style.display = 'none'; });
+  ]).then(() => {
+    hideStatus();
+    document.getElementById('sync-time').textContent = 'SYNCED · ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    renderTab();
+  }).catch(e => {
+    showStatus('SYNC FAILED · ' + e.message, true);
+    document.getElementById('content').innerHTML = '<div class="empty">DATA ERROR — RETRY</div>';
+  });
 }
 
 function renderTab() {
@@ -240,10 +250,10 @@ function renderTab() {
   else if (currentTab === 'coll') renderColl();
 }
 
-// ── 主動投資 ──────────────────────────────────────────────────
+/* ─────────── ACTIVE TAB ─────────── */
 function renderActive() {
   const rows = cache[SHEETS.active] || [];
-  if (!rows.length) { document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> 載入中...</div>'; return; }
+  if (!rows.length) { document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> LOADING...</div>'; return; }
   const data = rows.slice(3).filter(r => r[0] && r[0] !== '合計');
   const ytdBase   = parseFloat(rows[1]?.[13]) || null;
   const totalMV   = data.reduce((s,r) => s + (parseFloat(r[5])||0), 0);
@@ -252,749 +262,159 @@ function renderActive() {
   const totalRet  = totalCost > 0 ? totalPnL / totalCost : null;
   const ytdRet    = ytdBase && ytdBase > 0 ? (totalMV - ytdBase) / ytdBase : null;
 
+  const MK_COLOR = { US:'oklch(0.62 0.22 25)', TW:'oklch(0.72 0.17 145)' };
   const tableRows = data.map(r => {
     const ret = parseFloat(r[7]);
-    return `<tr>
-      <td class="blu">${r[0]}</td>
-      <td><span class="badge">${r[1]==='US'?'🇺🇸 美股':'🇹🇼 台股'}</span></td>
-      <td class="mn">${fmt.n(parseFloat(r[2]))}</td>
-      <td class="mn">${parseFloat(r[3]).toFixed(2)}</td>
-      <td class="mn">${parseFloat(r[4]).toFixed(2)}</td>
-      <td class="mn">${fmt.n(parseFloat(r[5]))}</td>
-      <td class="${cls(parseFloat(r[6]))}">${fmt.n(parseFloat(r[6]))}</td>
-      <td class="${cls(ret)}" style="font-weight:600">${fmt.p2(ret)}</td>
-      <td style="font-size:11px;color:var(--text3)">${fmt.d(r[8])}</td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('content').innerHTML = `
-    <div class="kpi-grid">
-      <div class="kpi"><div class="kpi-l">目前市值</div><div class="kpi-v kv-def">${fmt.n(totalMV)}</div></div>
-      <div class="kpi"><div class="kpi-l">總投入成本</div><div class="kpi-v kv-def">${fmt.n(totalCost)}</div></div>
-      <div class="kpi"><div class="kpi-l">未實現損益</div><div class="kpi-v ${totalPnL>=0?'kv-pos':'kv-neg'}">${fmt.n(totalPnL)}</div><div class="kpi-s">${fmt.p2(totalRet)}</div></div>
-      <div class="kpi"><div class="kpi-l">今年績效 (YTD)</div><div class="kpi-v ${ytdRet!=null?(ytdRet>=0?'kv-pos':'kv-neg'):'kv-def'}">${ytdRet!=null?fmt.p2(ytdRet):'—'}</div><div class="kpi-s">${ytdBase?'基準 '+fmt.n(ytdBase):'請填 N2 年初市值'}</div></div>
-    </div>
-    <div class="card">
-      <div class="card-hd"><span class="card-t">持倉明細</span></div>
-      ${data.length ? `<div class="tbl-wrap"><table>
-        <thead><tr><th style="text-align:left">標的</th><th>市場</th><th>股數</th><th>均價</th><th>現價</th><th>市值</th><th>損益</th><th>投報率</th><th>買入日</th></tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table></div>` : '<div class="empty">試算表中尚無資料</div>'}
-      <div class="note">💡 請在 Google Sheets「主動投資」頁面更新現價（E欄），並在 N2 填入年初市值以計算 YTD 績效</div>
-    </div>`;
-}
-
-// ── 現金流 ────────────────────────────────────────────────────
-// cashflow 欄：date[0] amount[1] type[2] category[3] card[4] note[5] collectible_flag[6]
-// type 值：income / fixed / variable / investment
-
-const CF_COLOR = { income:'#22c55e', fixed:'#06b6d4', variable:'#a855f7', investment:'#f59e0b' };
-const CF_LABEL = { income:'收入', fixed:'固定支出', variable:'變動支出', investment:'投資' };
-const CF_ICON  = { income:'💚', fixed:'🏠', variable:'🛍', investment:'📈' };
-
-function cfMonth(r)   { return String(r[0]||'').slice(0,7); }
-function cfAmt(r)     { return parseFloat(String(r[1]||'').replace(/[^0-9.]/g,'')) || 0; }
-function cfIsType(r, t){ return String(r[2]||'') === t; }
-function cfIsCollect(r){ return String(r[6]||'').toUpperCase() === 'TRUE'; }
-
-function cfSelectMonth(m) { cfMonthFilter = m; renderCF(); }
-
-function renderCF() {
-  const rows = cache[SHEETS.cf] || [];
-  if (!rows.length) {
-    document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> 載入中...</div>';
-    return;
-  }
-
-  // gviz API 不含表頭列，直接 filter 有 date 和 amount 的列
-  const data = rows.filter(r => r[0] && r[1] != null && r[1] !== '');
-  if (!data.length) {
-    document.getElementById('content').innerHTML = '<div class="empty">試算表中尚無資料，請在 cashflow 頁面新增記錄</div>';
-    return;
-  }
-
-  // 月份清單（升序）
-  const months = [...new Set(data.map(cfMonth).filter(Boolean))].sort();
-  if (!cfMonthFilter || !months.includes(cfMonthFilter)) cfMonthFilter = months[months.length - 1] || '';
-
-  // 當月資料
-  const md = data.filter(r => cfMonth(r) === cfMonthFilter);
-
-  // ── KPI 計算 ──────────────────────────────────────────────
-  const income  = md.filter(r=>cfIsType(r,'income')).reduce((s,r)=>s+cfAmt(r), 0);
-  const fixed   = md.filter(r=>cfIsType(r,'fixed')).reduce((s,r)=>s+cfAmt(r), 0);
-  const varExp  = md.filter(r=>cfIsType(r,'variable')).reduce((s,r)=>s+cfAmt(r), 0);
-  const invest  = md.filter(r=>cfIsType(r,'investment')).reduce((s,r)=>s+cfAmt(r), 0);
-  const totalExp= fixed + varExp;
-  const netSave = income - totalExp - invest;
-  const saveRate= income > 0 ? (income - totalExp) / income : null;
-
-  const fN = v => Math.round(v).toLocaleString();
-  const fR = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
-
-  // ── 月份 Pill ───────────────────────────────────────────
-  const monthPillsHtml = months.map(m => {
-    const active = m === cfMonthFilter;
-    const s = active
-      ? 'padding:5px 16px;border-radius:20px;border:none;background:#3b82f6;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.02em'
-      : 'padding:5px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#94a3b8;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s';
-    return '<button onclick="cfSelectMonth(\'' + m + '\')" style="' + s + '">' + m + '</button>';
-  }).join('');
-
-  // ── KPI 卡片（4格）──────────────────────────────────────
-  const kpiItems = [
-    { type:'income',     val:income, label:'收入',   icon:'💚' },
-    { type:'fixed',      val:fixed,  label:'固定支出', icon:'🏠' },
-    { type:'variable',   val:varExp, label:'變動支出', icon:'🛍' },
-    { type:'investment', val:invest, label:'投資',   icon:'📈' },
-  ];
-  const kpiHtml = kpiItems.map(k =>
-    '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:18px 20px;transition:border-color .15s">'
-    + '<div style="font-size:11px;color:#94a3b8;margin-bottom:10px;letter-spacing:.02em">' + k.label + '</div>'
-    + '<div style="font-size:20px;font-weight:700;color:' + CF_COLOR[k.type] + ';font-family:\'DM Mono\',monospace;letter-spacing:-.01em">NT$' + fN(k.val) + '</div>'
-    + '</div>'
-  ).join('');
-
-  // ── 淨儲蓄寬卡 ──────────────────────────────────────────
-  const saveColor = netSave >= 0 ? '#22c55e' : '#ef4444';
-  const rateColor = saveRate != null && saveRate >= 0.3 ? '#22c55e' : saveRate != null && saveRate >= 0.2 ? '#f59e0b' : '#94a3b8';
-  const rateLabel = saveRate != null && saveRate >= 0.3 ? '優秀！' : saveRate != null && saveRate >= 0.2 ? '良好' : saveRate != null && saveRate >= 0 ? '偏低' : '';
-  const savingsHtml =
-    '<div style="background:#080e1a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px 24px;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.5)">'
-    + '<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 60%,' + saveColor + '18 0%,transparent 65%);pointer-events:none"></div>'
-    + '<div style="font-size:10px;color:#475569;letter-spacing:.12em;font-weight:600;margin-bottom:18px;text-transform:uppercase">NET SAVINGS · ' + cfMonthFilter + '</div>'
-    + '<div style="font-size:48px;font-weight:800;color:' + saveColor + ';font-family:\'DM Mono\',monospace;letter-spacing:-.03em;line-height:1;margin-bottom:20px">NT$' + fN(netSave) + '</div>'
-    + '<div style="width:40px;height:1px;background:rgba(255,255,255,0.08);margin:0 auto 20px"></div>'
-    + '<div style="display:inline-flex;align-items:center;gap:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:50px;padding:8px 20px">'
-    +   '<div style="font-size:10px;color:#64748b;letter-spacing:.08em;font-weight:600">SAVING RATE</div>'
-    +   '<div style="font-size:22px;font-weight:800;color:' + rateColor + ';font-family:\'DM Mono\',monospace">' + fR(saveRate) + '</div>'
-    +   (rateLabel ? '<div style="font-size:11px;color:' + rateColor + ';font-weight:600">' + rateLabel + '</div>' : '')
-    + '</div>'
-    + '</div>';
-
-  // ── 分類細項（右側）─────────────────────────────────────
-  const expTypes = ['fixed', 'variable', 'investment'];
-  const catMap   = {};
-  md.filter(r => !cfIsType(r, 'income')).forEach(r => {
-    const t = String(r[2] || '');
-    const c = String(r[3] || '其他');
-    if (!catMap[t]) catMap[t] = {};
-    catMap[t][c] = (catMap[t][c] || 0) + cfAmt(r);
-  });
-
-  const breakdownHtml = expTypes.filter(t => catMap[t]).map(t => {
-    const typeTotal = Object.values(catMap[t]).reduce((s, v) => s + v, 0);
-    const catRows   = Object.entries(catMap[t]).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => {
-      const pct  = typeTotal > 0 ? amt / typeTotal : 0;
-      const barW = Math.max(4, Math.round(pct * 100));
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
-        + '<div style="font-size:13px;color:#cbd5e1;flex:1;min-width:0">' + cat + '</div>'
-        + '<div style="width:64px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;flex-shrink:0">'
-        +   '<div style="width:' + barW + '%;height:100%;background:' + (CF_COLOR[t] || '#94a3b8') + ';border-radius:2px"></div>'
-        + '</div>'
-        + '<div style="font-size:13px;color:#e2e8f0;font-family:\'DM Mono\',monospace;min-width:76px;text-align:right;font-weight:500">NT$' + fN(amt) + '</div>'
-        + '</div>';
-    }).join('');
-    return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px;margin-bottom:10px">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
-      +   '<span style="font-size:13px;font-weight:700;color:' + CF_COLOR[t] + '">' + CF_LABEL[t] + '</span>'
-      +   '<span style="font-size:15px;font-weight:700;color:#f1f5f9;font-family:\'DM Mono\',monospace">NT$' + fN(typeTotal) + '</span>'
-      + '</div>'
-      + catRows
-      + '</div>';
-  }).join('') || '<div class="empty" style="padding:20px">本月尚無支出記錄</div>';
-
-  // ── 明細表格：4欄（日期 / 項目類別 / 說明來源 / 金額）──
-  const txRows = [...md].sort((a, b) => String(b[0]).localeCompare(String(a[0]))).map(r => {
-    const type  = String(r[2] || '');
-    const amt   = cfAmt(r);
-    const isInc = cfIsType(r, 'income');
-    const isInv = cfIsType(r, 'investment');
-    const sign  = isInc ? '+' : '−';
-    const amtColor = isInc ? '#22c55e' : isInv ? '#f59e0b' : '#f1f5f9';
-    // 日期：只取 MM-DD → 顯示 "DD日"
-    const day   = String(r[0] || '').slice(8).replace(/^0/, '') + '日';
-    // 類別（帶顏色）
-    const cat   = r[3] || '';
-    const catColor = CF_COLOR[type] || '#94a3b8';
-    const collectBadge = cfIsCollect(r)
-      ? ' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25)">🏷</span>'
-      : '';
-    // 說明來源：note (card)
-    const note  = r[5] || '';
-    const card  = r[4] || '';
-    const desc  = note ? note + (card ? '（' + card + '）' : '') : card || '—';
-
+    const mk = r[1]==='US'?'US':'TW';
     return '<tr>'
-      + '<td class="mn" style="color:#64748b;white-space:nowrap">' + day + '</td>'
-      + '<td style="font-weight:600;color:' + catColor + '">' + cat + collectBadge + '</td>'
-      + '<td style="color:#94a3b8;font-size:12px">' + desc + '</td>'
-      + '<td class="mn" style="color:' + amtColor + ';font-weight:700;text-align:right;white-space:nowrap">' + sign + 'NT$' + fN(amt) + '</td>'
+      + '<td><span class="code" style="color:var(--cream)">' + r[0] + '</span></td>'
+      + '<td><span class="mbadge" style="background:' + MK_COLOR[mk] + '">' + (mk==='US'?'US':'TW') + '</span></td>'
+      + '<td class="mn" style="opacity:.8">' + fmt.n(parseFloat(r[2])) + '</td>'
+      + '<td class="mn" style="opacity:.8">' + parseFloat(r[3]).toFixed(2) + '</td>'
+      + '<td class="mn" style="opacity:.8">' + parseFloat(r[4]).toFixed(2) + '</td>'
+      + '<td class="mn" style="font-weight:700">' + fmt.n(parseFloat(r[5])) + '</td>'
+      + '<td class="' + cls(parseFloat(r[6])) + '" style="font-weight:700">' + fmt.n(parseFloat(r[6])) + '</td>'
+      + '<td class="' + cls(ret) + '" style="font-weight:700">' + fmt.p2(ret) + '</td>'
+      + '<td class="mn" style="font-size:11px;opacity:.55">' + fmt.d(r[8]) + '</td>'
       + '</tr>';
   }).join('');
 
-  // ── 趨勢圖資料（近 6 個月）──────────────────────────────
-  const last6 = months.slice(-6);
+  // Best & worst position for hero callouts
+  const best  = [...data].sort((a,b)=>(parseFloat(b[7])||0)-(parseFloat(a[7])||0))[0];
+  const worst = [...data].sort((a,b)=>(parseFloat(a[7])||0)-(parseFloat(b[7])||0))[0];
 
-  // ── 組合 HTML ────────────────────────────────────────────
-  document.getElementById('content').innerHTML =
-    // 月份 pills
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px">' + monthPillsHtml + '</div>'
+  // Live clock for hero
+  const now = new Date();
+  const pad2 = n => String(n).padStart(2,'0');
+  const timeStr = pad2(now.getHours())+':'+pad2(now.getMinutes())+':'+pad2(now.getSeconds());
 
-    // KPI 4格
-    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">' + kpiHtml + '</div>'
+  const pnlColor = totalPnL>=0?'var(--green)':'var(--signal)';
+  const ytdColor = ytdRet==null?'var(--cream)':(ytdRet>=0?'var(--green)':'var(--signal)');
 
-    // 儲蓄卡
-    + '<div style="margin-bottom:20px">' + savingsHtml + '</div>'
-
-    // 中段：趨勢 + 細項
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">'
-
-    // 左：支出占比甜甜圈圖
-    + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column">'
-    + '<div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:16px">支出結構占比</div>'
-    + '<div style="display:flex;align-items:center;gap:20px;flex:1">'
-    +   '<div style="position:relative;width:150px;height:150px;flex-shrink:0"><canvas id="cf-donut-chart"></canvas></div>'
-    +   '<div style="display:flex;flex-direction:column;gap:10px;flex:1">'
-    +     (fixed  > 0 ? '<div style="display:flex;align-items:center;gap:8px"><div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div><div style="flex:1;font-size:12px;color:#94a3b8">固定支出</div><div style="font-size:13px;font-weight:600;color:#f1f5f9;font-family:\'DM Mono\',monospace">NT$' + fN(fixed)  + '</div></div>' : '')
-    +     (varExp > 0 ? '<div style="display:flex;align-items:center;gap:8px"><div style="width:10px;height:10px;border-radius:50%;background:#8b5cf6;flex-shrink:0"></div><div style="flex:1;font-size:12px;color:#94a3b8">變動支出</div><div style="font-size:13px;font-weight:600;color:#f1f5f9;font-family:\'DM Mono\',monospace">NT$' + fN(varExp) + '</div></div>' : '')
-    +     (invest > 0 ? '<div style="display:flex;align-items:center;gap:8px"><div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div><div style="flex:1;font-size:12px;color:#94a3b8">投資</div><div style="font-size:13px;font-weight:600;color:#f1f5f9;font-family:\'DM Mono\',monospace">NT$' + fN(invest) + '</div></div>' : '')
-    +     (totalExp + invest === 0 ? '<div style="font-size:12px;color:#475569">本月尚無支出</div>' : '')
-    +   '</div>'
-    + '</div>'
-    + '</div>'
-
-    // 右：類別細項
-    + '<div style="overflow-y:auto;max-height:270px">' + breakdownHtml + '</div>'
-
-    + '</div>'
-
-    // 明細列表
-    + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:20px 22px">'
-    + '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px">'
-    + '<span style="font-size:13px;color:#f1f5f9;font-weight:700">' + cfMonthFilter + ' 明細</span>'
-    + '<span style="font-size:12px;color:#475569">共 ' + md.length + ' 筆</span>'
-    + '</div>'
-    + (txRows
-        ? '<div class="tbl-wrap"><table>'
-          + '<thead><tr>'
-          + '<th style="text-align:left;color:#64748b">日期</th>'
-          + '<th style="text-align:left;color:#64748b">項目／類別</th>'
-          + '<th style="text-align:left;color:#64748b">說明／來源</th>'
-          + '<th style="color:#64748b">金額</th>'
-          + '</tr></thead>'
-          + '<tbody>' + txRows + '</tbody>'
-          + '</table></div>'
-        : '<div class="empty">本月尚無記錄</div>')
-    + '</div>';
-
-  // ── 支出占比甜甜圈圖 ─────────────────────────────────────
-  const donutCanvas = document.getElementById('cf-donut-chart');
-  if (donutCanvas && (fixed + varExp + invest) > 0) {
-    const donutLabels = [], donutData = [], donutColors = [];
-    if (fixed  > 0) { donutLabels.push('固定支出'); donutData.push(fixed);  donutColors.push(CF_COLOR.fixed);      }
-    if (varExp > 0) { donutLabels.push('變動支出'); donutData.push(varExp); donutColors.push(CF_COLOR.variable);   }
-    if (invest > 0) { donutLabels.push('投資');     donutData.push(invest); donutColors.push(CF_COLOR.investment); }
-
-    charts.cfDonut = new Chart(donutCanvas, {
-      type: 'doughnut',
-      data: {
-        labels: donutLabels,
-        datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0, hoverOffset: 6 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        cutout: '68%',
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => ' NT$' + Math.round(ctx.parsed).toLocaleString()
-                + '  (' + ((ctx.parsed / (fixed + varExp + invest)) * 100).toFixed(1) + '%)'
-            }
-          }
-        }
-      }
-    });
-  }
-}
-
-// ── 收藏 ──────────────────────────────────────────────────────
-// collectibles 欄：id[0] date[1] amount[2] name[3] main_category[4]
-//   item_type[5] series_id[6] sold[7] sold_amount[8] note[9]
-//   image_url[10] acquired_from[11] wishlist[12] tags[13] tag_note[14]
-// collectibles_series 欄：id[0] main_category[1] series_name[2] total_count[3]
-//   （total_count 留空/0 = 純 IP 歸組；有值 = 追蹤完整度）
-
-// 等級標籤（自動偵測，給予特殊顏色）
-const GRADE_ORDER = ['SSS','SS','S','A','B','C'];
-const GRADE_STYLE = {
-  'SSS': { bg:'#f59e0b', text:'#000', shadow:'0 0 10px rgba(245,158,11,0.6)' },
-  'SS':  { bg:'#e2e8f0', text:'#0f172a', shadow:'0 0 8px rgba(226,232,240,0.4)' },
-  'S':   { bg:'#f97316', text:'#fff',    shadow:'0 0 8px rgba(249,115,22,0.5)' },
-  'A':   { bg:'#3b82f6', text:'#fff',    shadow:'' },
-  'B':   { bg:'#475569', text:'#fff',    shadow:'' },
-  'C':   { bg:'#334155', text:'#94a3b8', shadow:'' },
-};
-
-function parseTags(v) {
-  if (!v) return [];
-  return String(v).split(',').map(t => t.trim()).filter(Boolean);
-}
-function getGradeTag(tags) {
-  return tags.find(t => GRADE_ORDER.includes(t.toUpperCase())) || null;
-}
-function getNonGradeTags(tags) {
-  return tags.filter(t => !GRADE_ORDER.includes(t.toUpperCase()));
-}
-
-// 主分類同時支援新名稱（棒球/公仔）與舊名稱（棒球周邊/公仔玩具）以向下相容
-const CAT_COLORS = {
-  '棒球':'#3b82f6', '棒球周邊':'#3b82f6',
-  '公仔':'#ec4899', '公仔玩具':'#ec4899',
-  '追星':'#a855f7',
-  '其他':'#64748b'
-};
-const CAT_EMOJI = {
-  '棒球':'⚾', '棒球周邊':'⚾',
-  '公仔':'🎎', '公仔玩具':'🎎',
-  '追星':'🎤',
-  '其他':'📦'
-};
-
-let collCatFilter  = '';
-let collSearch     = '';
-let _collData      = [];
-let _collSeries    = {};
-let collCollapsed  = new Set(); // 記錄哪些收藏櫃是收合的
-
-function pillStyle(active, color) {
-  return `background:${active?color+'22':'transparent'};color:${active?color:'#64748b'};border:1px solid ${active?color+'55':'#334155'};border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s`;
-}
-function filterColl(cat)    { collCatFilter = cat; renderCollBody(); }
-function searchColl(v)      { collSearch = v;      renderCollBody(); }
-function toggleCabinet(type) {
-  // dataset.type 是字串，空字串對應「未分類」
-  const key = type || '';
-  collCollapsed.has(key) ? collCollapsed.delete(key) : collCollapsed.add(key);
-  renderCollBody();
-}
-function isSold(v)       { return v===true || String(v).toUpperCase()==='TRUE'; }
-function isWishlist(v)   { return v===true || String(v).toUpperCase()==='TRUE'; }
-
-function driveImg(url) {
-  if (!url) return '';
-  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400` : url;
-}
-
-let _collSelectedId = null;
-
-function showCollPanel(id) {
-  const r = _collData.find(x => String(x[0]) === String(id));
-  if (!r) return;
-
-  // 卡片高亮
-  document.querySelectorAll('.coll-card.selected').forEach(el => el.classList.remove('selected'));
-  const cardEl = document.getElementById('cc-' + id);
-  if (cardEl) cardEl.classList.add('selected');
-  _collSelectedId = id;
-
-  const panel  = document.getElementById('coll-panel');
-  const inner  = document.getElementById('coll-panel-inner');
-  if (!panel || !inner) return;
-
-  const catColor = CAT_COLORS[r[4]] || '#94a3b8';
-  const emoji    = CAT_EMOJI[r[4]] || '📦';
-  const imgUrl   = driveImg(r[10]||'');
-  const series   = _collSeries[String(r[6]||'')];
-
-  // 詳情列（字串拼接，不用 template literal）
-  const tags  = parseTags(r[13]);
-  const grade = getGradeTag(tags);
-  const otherT = getNonGradeTags(tags);
-  const gs    = grade ? GRADE_STYLE[grade.toUpperCase()] : null;
-
-  // 面板：等級 badge HTML（提前計算，避免 IIFE 在字串裡觸發 Babel 問題）
-  let panelGradeBadge = '';
-  if (grade && gs) {
-    panelGradeBadge = '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + gs.bg + ';color:' + gs.text + ';font-weight:800;box-shadow:' + gs.shadow + '">' + grade.toUpperCase() + '</span>';
-  }
-
-  const otherTagsHtml = otherT.length
-    ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:' + (r[14] ? '8' : '14') + 'px">'
-      + otherT.map(t => '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1)">' + t + '</span>').join('')
-      + '</div>'
-    : '';
-
-  // tag_note：tag 相關補充紀錄（如簽名日期、場合）
-  const tagNoteHtml = r[14]
-    ? '<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:8px;margin-bottom:14px">'
-      + '<span style="font-size:14px;flex-shrink:0;margin-top:1px">✍</span>'
-      + '<span style="font-size:12px;color:#fcd34d;line-height:1.6">' + r[14] + '</span>'
-      + '</div>'
-    : '';
-
-  // 購入金額：去掉逗號、貨幣符號等非數字字元再解析，避免 gviz 回傳格式化字串
-  var rawAmt = parseFloat(String(r[2]||'').replace(/[^0-9.]/g, ''));
-  var amountRow = (!isNaN(rawAmt) && rawAmt > 0) ? ['購入價格', 'NT$ ' + rawAmt.toLocaleString()] : false;
-
-  const detailDefs = [
-    series && ['IP / 系列', series.name],
-    r[5]   && ['物品型態',  r[5]],
-    r[1]   && ['入手日',    fmt.d(r[1])],
-    amountRow,
-    r[11]  && ['取得方式',  r[11]],
-  ].filter(Boolean);
-
-  const detailsHtml = detailDefs.length
-    ? '<div style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px">'
-      + detailDefs.map(function(d) {
-          return '<div>'
-            + '<div style="font-size:10px;color:#475569;letter-spacing:.05em;margin-bottom:3px">' + d[0] + '</div>'
-            + '<div style="font-size:13px;color:#e2e8f0">' + d[1] + '</div>'
-            + '</div>';
-        }).join('')
-      + '</div>'
-    : '';
-
-  const imgHtml = imgUrl
-    ? '<img src="' + imgUrl + '" style="width:100%;max-height:220px;object-fit:cover;display:block">'
-    : '<div style="height:100px;background:linear-gradient(135deg,' + catColor + '18,' + catColor + '06);display:flex;align-items:center;justify-content:center;font-size:48px;opacity:.5">' + emoji + '</div>';
-
-  const noteHtml = r[9]
-    ? '<div style="padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;font-size:12px;color:#94a3b8;line-height:1.65">' + r[9] + '</div>'
-    : '';
-
-  inner.innerHTML =
-    // 關閉按鈕
-    '<div style="display:flex;justify-content:flex-end;padding:12px 12px 0">'
-    + '<button onclick="hideCollPanel()" style="background:rgba(255,255,255,0.06);border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;color:#64748b;font-size:16px;line-height:28px;text-align:center;display:flex;align-items:center;justify-content:center">×</button>'
-    + '</div>'
-    // 圖片
-    + imgHtml
-    // 內容
-    + '<div style="padding:16px">'
-    +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
-    +     '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;font-weight:700">' + (r[4]||'') + '</span>'
-    +     (r[5] ? '<span style="font-size:9px;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,0.06);color:#64748b;border:1px solid rgba(255,255,255,0.08)">' + r[5] + '</span>' : '')
-    +     panelGradeBadge
-    +   '</div>'
-    +   '<div style="font-size:16px;font-weight:700;color:#f1f5f9;line-height:1.4;margin-bottom:10px">' + (r[3]||'') + '</div>'
-    +   otherTagsHtml
-    +   tagNoteHtml
-    +   detailsHtml
-    +   noteHtml
-    + '</div>';
-
-  panel.classList.add('open');
-}
-
-function hideCollPanel() {
-  const panel = document.getElementById('coll-panel');
-  if (panel) panel.classList.remove('open');
-  document.querySelectorAll('.coll-card.selected').forEach(el => el.classList.remove('selected'));
-  _collSelectedId = null;
-}
-
-// 保留舊名稱供相容
-function showCollModal(id) { showCollPanel(id); }
-function hideCollModal()   { hideCollPanel(); }
-
-// 卡片產生器（模組級，renderCollBody 呼叫）
-function makeCollCard(r) {
-  const imgUrl   = driveImg(r[10]||'');
-  const catColor = CAT_COLORS[r[4]] || '#94a3b8';
-  const emoji    = CAT_EMOJI[r[4]] || '📦';
-  const tags     = parseTags(r[13]);
-  const grade    = getGradeTag(tags);
-  const gs       = grade ? GRADE_STYLE[grade.toUpperCase()] : null;
-  const otherT   = getNonGradeTags(tags);
-
-  // 等級角標（圖片右上角）
-  const gradeBadge = gs
-    ? '<div style="position:absolute;top:8px;right:8px;background:' + gs.bg + ';color:' + gs.text
-      + ';font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.05em;box-shadow:' + gs.shadow + ';z-index:1">'
-      + grade.toUpperCase() + '</div>'
-    : '';
-
-  // 其他標籤 pills（卡片底部）
-  const tagPills = otherT.length
-    ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">'
-      + otherT.map(t => '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.06);color:#64748b;border:1px solid rgba(255,255,255,0.08)">' + t + '</span>').join('')
-      + '</div>'
-    : '';
-
-  const imgArea = imgUrl
-    ? '<img src="' + imgUrl + '" alt="" loading="lazy">'
-    : '<span style="font-size:44px;opacity:.35">' + emoji + '</span>';
-
-  return '<div id="cc-' + r[0] + '" class="coll-card' + (_collSelectedId === String(r[0]) ? ' selected' : '') + '" onclick="showCollPanel(\'' + r[0] + '\')">'
-    + '<div class="coll-img" style="position:relative">'
-    +   gradeBadge
-    +   imgArea
-    + '</div>'
-    + '<div class="coll-body">'
-    +   '<div style="margin-bottom:5px"><span style="font-size:9px;padding:2px 6px;border-radius:3px;background:' + catColor + '22;color:' + catColor + ';border:1px solid ' + catColor + '44;font-weight:700">' + (r[4]||'') + '</span></div>'
-    +   '<div style="font-size:13px;font-weight:600;color:#e2e8f0;line-height:1.35;margin-bottom:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">' + (r[3]||'') + '</div>'
-    +   '<div style="font-size:11px;color:#334155;font-family:\'DM Mono\',monospace">' + fmt.d(r[1]) + '</div>'
-    +   tagPills
-    + '</div>'
-    + '</div>';
-}
-
-// 完整初始化（切換到收藏 tab 時呼叫）：建立 shell，搜尋框只建立一次
-function renderColl() {
-  const rows  = cache[SHEETS.coll] || [];
-  const sRows = cache[SHEETS.collSeries] || [];
-  if (!rows.length) {
-    document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> 載入中...</div>';
-    return;
-  }
-
-  _collData = rows.filter(r => r[0] != null && r[0] !== '');
-  _collSeries = {};
-  sRows.filter(r => r[0]).forEach(r => {
-    _collSeries[String(r[0])] = { mainCat:r[1]||'', name:r[2]||'', total:parseInt(r[3])||0 };
-  });
-
-  // 建立固定 shell（搜尋框只在這裡建一次，不會被重建）
-  document.getElementById('content').innerHTML =
-    '<div id="coll-kpi"></div>'
-    + '<input id="coll-search-input" class="coll-search" placeholder="搜尋名稱、IP / 系列、物品型態、備註…" value="' + collSearch.replace(/"/g,'&quot;') + '">'
-    + '<div id="coll-pills" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px"></div>'
-    + '<div id="coll-wrapper">'
-    +   '<div id="coll-main"><div id="coll-body"></div></div>'
-    +   '<div id="coll-panel"><div id="coll-panel-inner"></div></div>'
-    + '</div>';
-
-  // 用 addEventListener 處理 IME（中文輸入法），比 inline handler 可靠
-  const inp = document.getElementById('coll-search-input');
-  let _imeOn = false, _searchTimer = null;
-  inp.addEventListener('compositionstart', () => { _imeOn = true; });
-  inp.addEventListener('compositionend',   () => {
-    _imeOn = false;
-    clearTimeout(_searchTimer);
-    searchColl(inp.value);
-  });
-  inp.addEventListener('input', () => {
-    if (_imeOn) return;           // 組字中，等 compositionend 再觸發
-    clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(() => searchColl(inp.value), 120); // 英文稍作 debounce
-  });
-
-  renderCollBody();
-}
-
-// 只更新 KPI / 篩選 pills / 卡片區（搜尋、篩選時呼叫，搜尋框不會被碰）
-function renderCollBody() {
-  if (!_collData.length) return;
-
-  const allSeriesEntries = Object.entries(_collSeries);
-  const wishlistItems = _collData.filter(r => isWishlist(r[12]));
-  const soldItems     = _collData.filter(r => !isWishlist(r[12]) && isSold(r[7]));
-  const owned         = _collData.filter(r => !isWishlist(r[12]) && !isSold(r[7]));
-
-  // 先算分類（KPI donut 需要用到）
-  const cats = [...new Set(owned.map(r=>r[4]).filter(Boolean))];
-  const catCounts = {};
-  owned.forEach(r => { const c=r[4]||'其他'; catCounts[c]=(catCounts[c]||0)+1; });
-  if (!collCatFilter || !cats.includes(collCatFilter)) collCatFilter = cats[0] || '';
-
-  // 各分類累計花費（owned 不含 sold）
-  const catSpend = {};
-  owned.forEach(r => {
-    const c = r[4] || '其他';
-    const amt = parseFloat(String(r[2]||'').replace(/[^0-9.]/g,''));
-    catSpend[c] = (catSpend[c]||0) + (isNaN(amt) ? 0 : amt);
-  });
-
-  // 當前分類的花費統計
-  const catOwned   = owned.filter(r => r[4] === collCatFilter);
-  const catSold    = soldItems.filter(r => r[4] === collCatFilter);
-  const totalSpent = catOwned.reduce((s,r) => {
-    const v = parseFloat(String(r[2]||'').replace(/[^0-9.]/g,'')); return s + (isNaN(v)?0:v);
-  }, 0);
-  const totalRecov = catSold.reduce((s,r) => {
-    const v = parseFloat(String(r[8]||'').replace(/[^0-9.]/g,'')); return s + (isNaN(v)?0:v);
-  }, 0);
-  const netSpent   = totalSpent - totalRecov;
-  const fmtAmt     = v => 'NT$' + Math.abs(Math.round(v)).toLocaleString();
-
-  // ── 新版統計區 ─────────────────────────────────────────────────
-  const kpiEl = document.getElementById('coll-kpi');
-  if (kpiEl) {
-    kpiEl.className = ''; // 移除 kpi-grid，用自訂 grid
-
-    // SVG donut：各分類比例
-    const r=52, cx=64, cy=64, sw=13, circ=2*Math.PI*r;
-    let accum=0;
-    const arcSegs = cats.filter(c=>catCounts[c]>0).map(c=>{
-      const pct=(catCounts[c]||0)/(owned.length||1);
-      const seg=Math.max(0, pct*circ - (cats.length>1?3:0));
-      const color=CAT_COLORS[c]||'#94a3b8';
-      const el='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'"'
-        +' stroke-dasharray="'+seg.toFixed(1)+' '+circ.toFixed(1)+'"'
-        +' stroke-dashoffset="'+(-accum).toFixed(1)+'"'
-        +' transform="rotate(-90 '+cx+' '+cy+')" stroke-linecap="butt"/>';
-      accum+=pct*circ; return el;
-    }).join('');
-    const catEmoji = CAT_EMOJI[collCatFilter] || '📦';
-
-    // 分類明細列（含各分類花費，字串拼接避免 Babel 巢狀 template literal 問題）
-    const catRowsHtml = cats.filter(c => catCounts[c] > 0).map(c =>
-      '<div style="display:flex;align-items:center;gap:7px">'
-      + '<span style="width:7px;height:7px;border-radius:50%;background:' + (CAT_COLORS[c]||'#94a3b8') + ';flex-shrink:0"></span>'
-      + '<span style="font-size:12px;color:#94a3b8">' + (CAT_EMOJI[c]||'') + ' ' + c + '</span>'
-      + '<div style="margin-left:auto;text-align:right;line-height:1.3">'
-      + '<div style="font-size:12px;color:#e2e8f0;font-family:\'DM Mono\',monospace">' + catCounts[c] + ' 件</div>'
-      + ((catSpend[c]||0) > 0 ? '<div style="font-size:10px;color:#475569;font-family:\'DM Mono\',monospace">NT$' + Math.round(catSpend[c]).toLocaleString() + '</div>' : '')
-      + '</div>'
-      + '</div>'
-    ).join('');
-
-    // 右側三格花費統計卡（依當前分類）
-    const catLabel = (CAT_EMOJI[collCatFilter]||'') + ' ' + collCatFilter;
-    const statDefs = [
-      { icon:'💰', en:'TOTAL SPENT',  zh: catLabel + ' 總花費',
-        val: totalSpent > 0 ? fmtAmt(totalSpent) : '—',
-        color:'#3b82f6' },
-      { icon:'🔄', en:'RECOVERED',    zh: catLabel + ' 已回收',
-        val: totalRecov > 0 ? fmtAmt(totalRecov) : '—',
-        color:'#22c55e' },
-      { icon:'📉', en:'NET SPEND',    zh: '淨支出（扣回收後）',
-        val: totalSpent > 0 ? (netSpent < 0 ? '-' : '') + fmtAmt(netSpent) : '—',
-        color: (totalSpent > 0 && netSpent <= 0) ? '#22c55e' : '#ef4444' },
-    ];
-    const statCardsHtml = statDefs.map(s =>
-      '<div style="background:var(--bg2);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex:1">'
-      + '<span style="font-size:18px;flex-shrink:0">' + s.icon + '</span>'
-      + '<div style="flex:1;min-width:0">'
-      + '<div style="font-size:9px;color:#334155;letter-spacing:.08em;font-weight:700">' + s.en + '</div>'
-      + '<div style="font-size:11px;color:#64748b">' + s.zh + '</div>'
-      + '</div>'
-      + '<div style="font-size:16px;font-weight:700;color:' + s.color + ';font-family:\'DM Mono\',monospace;flex-shrink:0">' + s.val + '</div>'
-      + '</div>'
-    ).join('');
-
-    kpiEl.innerHTML =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">'
-
-      // 左：圓形統計 + 分類明細
-      + '<div style="background:var(--bg2);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px 22px;display:flex;gap:20px;align-items:center">'
-      +   '<div style="position:relative;flex-shrink:0">'
-      +     '<svg width="128" height="128" style="display:block">'
-      +       '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="' + sw + '"/>'
-      +       arcSegs
-      +     '</svg>'
-      +     '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">'
-      +       '<span style="font-size:38px;line-height:1">' + catEmoji + '</span>'
-      +     '</div>'
-      +   '</div>'
-      +   '<div>'
-      +     '<div style="font-size:10px;color:#475569;letter-spacing:.09em;font-weight:700;margin-bottom:3px">TOTAL ITEMS</div>'
-      +     '<div style="font-size:34px;font-weight:800;color:#f1f5f9;line-height:1;margin-bottom:2px">' + owned.length + ' <span style="font-size:16px;font-weight:500;color:#64748b">件</span></div>'
-      +     '<div style="font-size:9px;color:#334155;letter-spacing:.07em;margin-bottom:14px">CURRENTLY HELD</div>'
-      +     '<div style="display:flex;flex-direction:column;gap:6px">' + catRowsHtml + '</div>'
-      +   '</div>'
-      + '</div>'
-
-      // 右：三格數字卡
-      + '<div style="display:flex;flex-direction:column;gap:10px">' + statCardsHtml + '</div>'
-
+  // Sparkbar visualisation of position values (top 8)
+  const top = [...data].sort((a,b)=>(parseFloat(b[5])||0)-(parseFloat(a[5])||0)).slice(0,12);
+  const maxVal = Math.max(...top.map(r=>parseFloat(r[5])||0), 1);
+  const sparkBars = top.map(r=>{
+    const v = parseFloat(r[5])||0;
+    const h = Math.max(8, Math.round((v/maxVal)*96));
+    const ret = parseFloat(r[7])||0;
+    const c = ret>=0 ? 'var(--green)' : 'var(--signal)';
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0">'
+      + '<div style="width:100%;max-width:32px;background:' + c + ';height:' + h + 'px;border-radius:2px 2px 0 0"></div>'
+      + '<div class="mono" style="font-size:9px;opacity:.7;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48px">' + r[0] + '</div>'
       + '</div>';
-  }
+  }).join('');
 
-  // 篩選 pills
-  const pillsEl = document.getElementById('coll-pills');
-  if (pillsEl) pillsEl.innerHTML =
-    cats.map(c=>`<button onclick="filterColl('${c}')" style="${pillStyle(collCatFilter===c,CAT_COLORS[c]||'#94a3b8')}">${CAT_EMOJI[c]||''} ${c} ${catCounts[c]||0}</button>`).join('');
+  // Hero: 3-column trading deck
+  const heroHtml =
+    '<div style="display:grid;grid-template-columns:minmax(240px,1fr) minmax(360px,2fr) minmax(240px,1fr);gap:14px;margin-bottom:14px">'
 
-  // 篩選 + 搜尋（固定按單一分類篩，不再有「全部」混合模式）
-  let filtered = owned.filter(r=>r[4]===collCatFilter);
-  if (collSearch) {
-    const q = collSearch.toLowerCase();
-    filtered = filtered.filter(r => {
-      const ipName = (_collSeries[String(r[6]||'')]?.name || '').toLowerCase();
-      const tagStr = parseTags(r[13]).join(' ').toLowerCase();
-      return (r[3]||'').toLowerCase().includes(q)
-          || (r[5]||'').toLowerCase().includes(q)
-          || (r[9]||'').toLowerCase().includes(q)
-          || ipName.includes(q)
-          || tagStr.includes(q);
-    });
-  }
+    // LEFT — trader id
+    + '<div style="background:var(--ink);color:var(--cream);border-radius:28px;padding:22px;position:relative;overflow:hidden;min-height:340px;display:flex;flex-direction:column;justify-content:space-between">'
+    +   '<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+    +     '<div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.6">TRADER.ID</div>'
+    +     '<div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.6">RANK · 02</div>'
+    +   '</div>'
+    +   '<div>'
+    +     '<div class="display" style="font-size:42px;color:var(--cream)">TRADE.</div>'
+    +     '<div class="display" style="font-size:30px;color:oklch(0.62 0.22 25)">DECK</div>'
+    +     '<div class="mono" style="font-size:10px;opacity:.55;margin-top:10px;line-height:1.5">ALPHA.SEEKER<br/><span class="blink">⏵</span> SESSION OPEN</div>'
+    +   '</div>'
+    +   '<div>'
+    +     '<div class="mono" style="font-size:10px;opacity:.55;margin-bottom:8px;letter-spacing:.1em">POSITION DISTRIBUTION</div>'
+    +     '<div class="sparks" style="height:96px;align-items:flex-end;display:flex">' + sparkBars + '</div>'
+    +   '</div>'
+    + '</div>'
 
-  // 依 item_type 分組 → 收藏櫃
-  const typeMap = {};
-  filtered.forEach(r => { const t=r[5]||''; if(!typeMap[t]) typeMap[t]=[]; typeMap[t].push(r); });
-  const sortedTypes = Object.keys(typeMap).sort((a,b)=>{ if(!a) return 1; if(!b) return -1; return a.localeCompare(b,'zh-TW'); });
+    // CENTER — big P&L
+    + '<div style="background:oklch(0.62 0.22 25);color:#fff;border-radius:28px;padding:28px 32px;position:relative;overflow:hidden;min-height:340px;display:flex;flex-direction:column;justify-content:space-between">'
+    +   '<div style="display:flex;justify-content:space-between;align-items:center">'
+    +     '<div class="mono" style="font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.92">⏵ LIVE / ' + timeStr + '</div>'
+    +     '<div class="mono" style="font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.92">DECK ● ACTIVE</div>'
+    +   '</div>'
+    +   '<div>'
+    +     '<div class="mono" style="font-size:11px;opacity:.9;letter-spacing:.18em;margin-bottom:10px">MARKET.VALUE / TWD</div>'
+    +     '<div class="stamp" style="font-size:clamp(40px,5.8vw,84px);color:#0d0d10;line-height:.88;letter-spacing:-.02em">$' + fmt.n(totalMV) + '</div>'
+    +     '<div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">'
+    +       '<span class="chip dark"><span class="star">★</span> P&L · ' + (totalPnL>=0?'+':'') + fmt.n(totalPnL) + '</span>'
+    +       '<span class="chip dark"><span class="star">★</span> RET · ' + fmt.p2(totalRet) + '</span>'
+    +       '<span class="chip dark"><span class="star">★</span> POS · ' + String(data.length).padStart(2,'0') + '</span>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="mono" style="font-size:10px;opacity:.85;letter-spacing:.1em;line-height:1.6">'
+    +     'COST.BASIS: NT$' + fmt.n(totalCost) + '<br/>YTD.RETURN: ' + (ytdRet!=null ? fmt.p2(ytdRet) : '— / NEEDS BASE')
+    +   '</div>'
+    + '</div>'
 
-  const cabinetHtml = filtered.length
-    ? sortedTypes.map(type => {
-        const items      = typeMap[type];
-        const label      = type || '未分類';
-        const isNamed    = !!type;
-        const collapsed  = collCollapsed.has(type);
-        const labelColor = isNamed ? '#cbd5e1' : '#475569';
-        const chevron  = collapsed ? '›' : '∨';
-        const gridHtml = collapsed ? '' : '<div class="coll-grid">' + items.map(makeCollCard).join('') + '</div>';
-        // 用 data-type 屬性傳中文，避免雙引號嵌入 onclick 字串破壞 HTML 解析
-        return '<div style="margin-bottom:' + (collapsed ? '8' : '28') + 'px">'
-          + '<div data-type="' + type.replace(/"/g, '&quot;') + '" onclick="toggleCabinet(this.dataset.type)"'
-          + ' style="display:flex;align-items:center;gap:10px;margin-bottom:' + (collapsed ? '0' : '14') + 'px;'
-          + 'cursor:pointer;padding:8px 10px;border-radius:8px;user-select:none"'
-          + ' onmouseenter="this.style.background=\'rgba(255,255,255,0.04)\'"'
-          + ' onmouseleave="this.style.background=\'transparent\'">'
-          + '<span style="font-size:13px;font-weight:700;color:' + labelColor + ';letter-spacing:.03em">' + label + '</span>'
-          + '<span style="font-size:11px;color:#475569;font-family:\'DM Mono\',monospace">' + items.length + ' 件</span>'
-          + '<div style="flex:1;height:1px;background:rgba(255,255,255,0.06)"></div>'
-          + '<span style="font-size:13px;color:#475569;transition:transform .2s">' + chevron + '</span>'
-          + '</div>'
-          + gridHtml
-          + '</div>';
-      }).join('')
-    : '<div class="empty">' + (collSearch ? '找不到符合的收藏' : '此分類尚無收藏') + '</div>';
+    // RIGHT — top + bottom callouts
+    + '<div style="display:flex;flex-direction:column;gap:14px">'
+    +   (best ? (
+        '<div style="background:var(--cream);border-radius:24px;padding:18px 22px;flex:1;min-height:160px;display:flex;flex-direction:column;justify-content:space-between">'
+        + '<div style="display:flex;justify-content:space-between"><div class="mono" style="font-size:10px;letter-spacing:.14em;opacity:.55">TOP / GAINER</div><span class="mbadge" style="background:' + (best[1]==='US'?MK_COLOR.US:MK_COLOR.TW) + '">' + (best[1]==='US'?'US':'TW') + '</span></div>'
+        + '<div><div class="stamp" style="font-size:36px">' + best[0] + '</div><div class="stamp" style="font-size:24px;color:var(--green);margin-top:4px">' + fmt.p2(parseFloat(best[7])) + '</div></div>'
+        + '<div class="mono" style="font-size:10px;opacity:.6">P&L NT$' + fmt.n(parseFloat(best[6])||0) + '</div>'
+        + '</div>') : '')
+    +   (worst && data.length>1 ? (
+        '<div style="background:var(--cream);border-radius:24px;padding:18px 22px;flex:1;min-height:160px;display:flex;flex-direction:column;justify-content:space-between">'
+        + '<div style="display:flex;justify-content:space-between"><div class="mono" style="font-size:10px;letter-spacing:.14em;opacity:.55">BOTTOM / LOSER</div><span class="mbadge" style="background:' + (worst[1]==='US'?MK_COLOR.US:MK_COLOR.TW) + '">' + (worst[1]==='US'?'US':'TW') + '</span></div>'
+        + '<div><div class="stamp" style="font-size:36px">' + worst[0] + '</div><div class="stamp" style="font-size:24px;color:' + (parseFloat(worst[7])<0?'var(--signal)':'var(--amber)') + ';margin-top:4px">' + fmt.p2(parseFloat(worst[7])) + '</div></div>'
+        + '<div class="mono" style="font-size:10px;opacity:.6">P&L NT$' + fmt.n(parseFloat(worst[6])||0) + '</div>'
+        + '</div>') : '')
+    + '</div>'
 
-  // 願望清單
-  const wishHtml = wishlistItems.length ? `
-    <div class="card" style="border-color:rgba(245,158,11,0.2)">
-      <div class="card-hd">
-        <span class="card-t" style="color:#f59e0b">✦ 願望清單</span>
-        <span style="font-size:11px;color:#64748b">${wishlistItems.length} 件</span>
-      </div>
-      <div class="coll-grid">
-        ${wishlistItems.map(r=>{
-          const catColor=CAT_COLORS[r[4]]||'#94a3b8', emoji=CAT_EMOJI[r[4]]||'📦';
-          return `<div class="coll-card" onclick="showCollModal('${r[0]}')" style="opacity:.75;border-style:dashed">
-            <div class="coll-img" style="background:rgba(245,158,11,0.05)">
-              <span style="font-size:44px;opacity:.3">${emoji}</span>
-            </div>
-            <div class="coll-body">
-              <div style="margin-bottom:5px">
-                <span style="font-size:9px;padding:2px 6px;border-radius:3px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44;font-weight:700">${r[4]||''}</span>
-              </div>
-              <div style="font-size:13px;font-weight:600;color:#94a3b8;line-height:1.35">${r[3]||''}</div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : '';
+    + '</div>';
 
-  // 已出售
-  const soldHtml = soldItems.length ? `
-    <details style="margin-top:8px">
-      <summary style="font-size:12px;color:#475569;cursor:pointer;padding:8px 0;list-style:none">▸ 已出售 ${soldItems.length} 件</summary>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-        ${soldItems.map(r=>`<span style="font-size:12px;color:#334155;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:4px 10px">${r[3]||''}</span>`).join('')}
-      </div>
-    </details>` : '';
+  // Ticker — scrolling positions
+  const tickerHtml = data.length
+    ? '<div style="background:var(--ink);color:var(--cream);border-radius:999px;padding:12px 4px;margin-bottom:18px;overflow:hidden">'
+      + '<div class="ticker-wrap"><div class="ticker mono" style="font-size:12px;letter-spacing:.08em">'
+      + [0,1].map(k =>
+          '<div>' + data.map(r => {
+            const ret = parseFloat(r[7])||0;
+            const c = ret>=0 ? 'var(--green)' : 'var(--signal)';
+            return '<span style="display:inline-flex;align-items:center;gap:10px">'
+              + '<span style="color:oklch(0.62 0.22 25);font-weight:700">●</span>'
+              + '<span style="font-weight:700">' + r[0] + '</span>'
+              + '<span style="opacity:.7">$' + parseFloat(r[4]).toFixed(2) + '</span>'
+              + '<span style="color:' + c + '">' + fmt.p2(ret) + '</span>'
+              + '<span style="opacity:.5">|</span>'
+              + '</span>';
+          }).join('') + '</div>'
+        ).join('')
+      + '</div></div></div>'
+    : '';
 
-  const bodyEl = document.getElementById('coll-body');
-  if (bodyEl) bodyEl.innerHTML = cabinetHtml + wishHtml + soldHtml;
+  document.getElementById('content').innerHTML =
+    heroHtml + tickerHtml
+    + '<div class="kpi-row">'
+    +   '<div class="kpi"><div class="kpi-label">COST.BASIS / TWD</div><div class="kpi-value" style="color:var(--cream)">' + fmt.n(totalCost) + '</div><div class="kpi-sub">TOTAL INVESTED</div></div>'
+    +   '<div class="kpi"><div class="kpi-label">UNREALIZED P&amp;L</div><div class="kpi-value" style="color:' + pnlColor + '">' + (totalPnL>=0?'+':'') + fmt.n(totalPnL) + '</div><div class="kpi-sub">' + fmt.p2(totalRet) + '</div></div>'
+    +   '<div class="kpi"><div class="kpi-label">YTD PERFORMANCE</div><div class="kpi-value" style="color:' + ytdColor + '">' + (ytdRet!=null?fmt.p2(ytdRet):'—') + '</div><div class="kpi-sub">' + (ytdBase?'BASE NT$'+fmt.n(ytdBase):'NEEDS N2 BASE') + '</div></div>'
+    +   '<div class="kpi cream"><div class="kpi-label" style="opacity:.5">POSITIONS / COUNT</div><div class="kpi-value" style="color:var(--ink)">' + String(data.length).padStart(2,'0') + '</div><div class="kpi-sub">ACTIVE</div></div>'
+    + '</div>'
+    + '<div class="section dark">'
+    +   '<div class="section-hd">'
+    +     '<div><div class="section-title">POSITION / MATRIX</div><div class="section-sub">主動投資持倉明細</div></div>'
+    +     '<span class="chip dark"><span class="star">★</span> ' + data.length + ' POSITIONS</span>'
+    +   '</div>'
+    +   (data.length
+      ? '<div class="tbl-wrap"><table class="t"><thead><tr>'
+        + '<th>SYMBOL<span class="zh">標的</span></th>'
+        + '<th>MKT<span class="zh">市場</span></th>'
+        + '<th>SHARES<span class="zh">股數</span></th>'
+        + '<th>AVG<span class="zh">均價</span></th>'
+        + '<th>NOW<span class="zh">現價</span></th>'
+        + '<th>VALUE<span class="zh">市值</span></th>'
+        + '<th>P&amp;L<span class="zh">損益</span></th>'
+        + '<th>RET<span class="zh">投報率</span></th>'
+        + '<th>BUY<span class="zh">買入日</span></th>'
+        + '</tr></thead><tbody>' + tableRows + '</tbody></table></div>'
+      : '<div class="empty">EMPTY / 試算表中尚無資料</div>')
+    + '</div>'
+    + '<div style="margin-top:14px;padding:14px 18px;background:var(--ink);color:var(--cream);border-radius:14px;font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:.08em;opacity:.85">// TIP — 在 Google Sheets「主動投資」E欄更新現價，N2 填入年初市值以計算 YTD</div>';
 }
 
-// Pre-load other sheets in background
+/* prefetch */
 (async () => {
   try {
     await Promise.all([
@@ -1004,516 +424,17 @@ function renderCollBody() {
       fetchSheet(SHEETS.coll,    COLL_SHEET_ID),
       fetchSheet(SHEETS.collSeries, COLL_SHEET_ID),
     ]);
-  } catch(e) {}
+    document.getElementById('sync-time').textContent = 'SYNCED · ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    document.getElementById('sync-time').textContent = 'OFFLINE';
+  }
 })();
 </script>
 
-<!-- ── 被動配置：React 元件 ─────────────────────────────────── -->
-<script type="text/babel">
-const { useState, useMemo, useEffect, useRef } = React;
+<!-- per-tab logic in external files -->
+<script src="tabs/cashflow.js"></script>
+<script src="tabs/collections.js"></script>
+<script type="text/babel" src="tabs/passive.jsx"></script>
 
-const PASSIVE_SHEET_ID = "1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg";
-const csvUrl = s => `https://docs.google.com/spreadsheets/d/${PASSIVE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(s)}`;
-
-/* ── 假資料 ─────────────────────────────────────────────────── */
-const MOCK_S = [
-  { ticker:"VWRA",  total_shares:"137",  avg_cost:"149.54", current_price:"179.65", current_value:"776326", target_pct:"52.25%", actual_pct:"35.4%", diff_pct:"-16.85%", xirr:"17.25%", currency:"USD", fx_rate:"31.54" },
-  { ticker:"0050",  total_shares:"300",  avg_cost:"168.00", current_price:"185.50", current_value:"556500", target_pct:"25%",    actual_pct:"28.1%", diff_pct:"-3.1%",   xirr:"14.20%", currency:"TWD", fx_rate:"1" },
-  { ticker:"00878", total_shares:"2000", avg_cost:"20.50",  current_price:"22.80",  current_value:"456000", target_pct:"15%",    actual_pct:"23.0%", diff_pct:"-8.0%",   xirr:"11.80%", currency:"TWD", fx_rate:"1" },
-  { ticker:"VTI",   total_shares:"40",   avg_cost:"210.00", current_price:"245.30", current_value:"318890", target_pct:"7.75%",  actual_pct:"16.1%", diff_pct:"-8.35%",  xirr:"19.40%", currency:"USD", fx_rate:"31.54" },
-];
-const MOCK_M = [
-  { month:"2024/08", total_value:"1620000" },
-  { month:"2024/09", total_value:"1590000" },
-  { month:"2024/10", total_value:"1680000" },
-  { month:"2024/11", total_value:"1750000" },
-  { month:"2024/12", total_value:"1820000" },
-  { month:"2025/01", total_value:"1866357" },
-  { month:"2025/02", total_value:"1910000" },
-  { month:"2025/03", total_value:"1955000" },
-  { month:"2025/04", total_value:"1982400" },
-];
-
-/* ── CSV ────────────────────────────────────────────────────── */
-function parseCsv(text) {
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return [];
-  const headers = parseRow(lines[0]);
-  return lines.slice(1).map(line => {
-    const vals = parseRow(line), obj = {};
-    headers.forEach((h, i) => { obj[h.trim()] = (vals[i] ?? "").trim(); });
-    return obj;
-  }).filter(r => Object.values(r).some(v => v !== ""));
-}
-function parseRow(line) {
-  const res = []; let cur = "", q = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') { if (q && line[i+1] === '"') { cur += '"'; i++; } else q = !q; }
-    else if (c === ',' && !q) { res.push(cur); cur = ""; }
-    else cur += c;
-  }
-  return [...res, cur];
-}
-const pnum = s => parseFloat(String(s||0).replace(/[NT$,%\s]/g,"")) || 0;
-const ppct = s => { const v = pnum(s); return Math.abs(v) < 1 && v !== 0 ? v * 100 : v; };
-
-/* ── 常數 ───────────────────────────────────────────────────── */
-const MC = { TW:"#22c55e", US:"#3b82f6", UK:"#f59e0b" };
-const ML = { TW:"台股", US:"美股", UK:"英股" };
-const getMarket = c => c==="TWD"?"TW":c==="GBP"?"UK":"US";
-const pfmt  = (n,d=0) => isNaN(n)||n==null?"—":n.toLocaleString("zh-TW",{maximumFractionDigits:d});
-const pfmtP = n => isNaN(n)?"—":(n>=0?"+":"")+n.toFixed(2)+"%";
-
-/* ── SVG 圓餅圖 ─────────────────────────────────────────────── */
-function PieChart({ data, size=180 }) {
-  const r = size/2, cx = r, cy = r, ir = r*0.54, or = r*0.82;
-  const total = data.reduce((s,d)=>s+d.value,0);
-  let angle = -Math.PI/2;
-  const slices = data.map(d => {
-    const sweep = (d.value/total)*Math.PI*2;
-    const a1=angle, a2=angle+sweep; angle=a2;
-    const x1=cx+or*Math.cos(a1), y1=cy+or*Math.sin(a1);
-    const x2=cx+or*Math.cos(a2), y2=cy+or*Math.sin(a2);
-    const xi1=cx+ir*Math.cos(a1), yi1=cy+ir*Math.sin(a1);
-    const xi2=cx+ir*Math.cos(a2), yi2=cy+ir*Math.sin(a2);
-    const lg=sweep>Math.PI?1:0;
-    const path=`M${xi1},${yi1} L${x1},${y1} A${or},${or} 0 ${lg},1 ${x2},${y2} L${xi2},${yi2} A${ir},${ir} 0 ${lg},0 ${xi1},${yi1} Z`;
-    return { ...d, path, pct:(d.value/total*100).toFixed(1) };
-  });
-  return (
-    <div style={{display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {slices.map((s,i)=><path key={i} d={s.path} fill={MC[s.market]||"#94a3b8"} opacity={0.9}/>)}
-      </svg>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {slices.map((s,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}>
-            <div style={{width:10,height:10,borderRadius:2,background:MC[s.market]||"#94a3b8",flexShrink:0}}/>
-            <span style={{color:"#94a3b8"}}>{s.label}</span>
-            <span style={{fontFamily:"'DM Mono',monospace",color:"#e2e8f0"}}>{s.pct}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── SVG 折線圖 ─────────────────────────────────────────────── */
-function LineChart({ data, height=240 }) {
-  const ref = useRef(null);
-  const [w, setW] = useState(600);
-  useEffect(()=>{
-    if(!ref.current) return;
-    const ro = new ResizeObserver(e=>setW(e[0].contentRect.width));
-    ro.observe(ref.current);
-    return ()=>ro.disconnect();
-  },[]);
-  if (!data || data.length === 0) return null;
-  const pad={t:16,r:16,b:56,l:60};
-  const iw=Math.max(w-pad.l-pad.r,10), ih=height-pad.t-pad.b;
-  const vals=data.map(d=>d.value);
-  const minV=Math.min(...vals), maxV=Math.max(...vals), range=maxV-minV||1;
-  const px=i=>pad.l+(i/(data.length-1))*iw;
-  const py=v=>pad.t+ih-((v-minV)/range)*ih;
-  const pts=data.map((d,i)=>`${px(i)},${py(d.value)}`).join(" ");
-  const area=`M${px(0)},${py(data[0].value)} `+data.map((d,i)=>`L${px(i)},${py(d.value)}`).join(" ")+` L${px(data.length-1)},${pad.t+ih} L${px(0)},${pad.t+ih} Z`;
-  const yTicks=Array.from({length:5},(_,i)=>minV+(maxV-minV)*(i/4));
-  const [tip,setTip]=useState(null);
-  return (
-    <div ref={ref} style={{width:"100%"}}>
-      <svg width="100%" height={height} style={{overflow:"visible"}}>
-        <defs>
-          <linearGradient id="pag" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity={0.28}/>
-            <stop offset="100%" stopColor="#22c55e" stopOpacity={0}/>
-          </linearGradient>
-        </defs>
-        {yTicks.map((v,i)=>(
-          <g key={i}>
-            <line x1={pad.l} y1={py(v)} x2={pad.l+iw} y2={py(v)} stroke="#1e293b" strokeDasharray="3,3"/>
-            <text x={pad.l-8} y={py(v)+4} textAnchor="end" fill="#64748b" fontSize={10}>{(v/10000).toFixed(0)}萬</text>
-          </g>
-        ))}
-        {data.map((d,i)=>{
-          const rotate=data.length>8, xPos=px(i), yPos=pad.t+ih+18;
-          return rotate
-            ? <text key={i} x={xPos} y={yPos} textAnchor="end" fill="#64748b" fontSize={10} transform={`rotate(-40,${xPos},${yPos})`}>{d.month}</text>
-            : <text key={i} x={xPos} y={yPos} textAnchor="middle" fill="#64748b" fontSize={10}>{d.month}</text>;
-        })}
-        <path d={area} fill="url(#pag)"/>
-        <polyline points={pts} fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinejoin="round"/>
-        {data.map((d,i)=>(
-          <g key={i} onMouseEnter={()=>setTip({i,d})} onMouseLeave={()=>setTip(null)} style={{cursor:"pointer"}}>
-            <circle cx={px(i)} cy={py(d.value)} r={tip?.i===i?6:4} fill="#22c55e" opacity={tip?.i===i?1:0.8}/>
-            {tip?.i===i&&(
-              <g>
-                <rect x={px(i)-60} y={py(d.value)-38} width={120} height={28} rx={6} fill="#1e2433" stroke="#334155"/>
-                <text x={px(i)} y={py(d.value)-20} textAnchor="middle" fill="#f1f5f9" fontSize={11} fontFamily="'DM Mono',monospace">{d.month}</text>
-                <text x={px(i)} y={py(d.value)-8} textAnchor="middle" fill="#22c55e" fontSize={11} fontFamily="'DM Mono',monospace">NT${pfmt(d.value)}</text>
-              </g>
-            )}
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-/* ── 小元件 ─────────────────────────────────────────────────── */
-const PCard = ({label,value,sub,accent}) => (
-  <div style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:16,padding:"20px 24px",flex:1,minWidth:150}}>
-    <div style={{fontSize:12,color:"#9ca3af",letterSpacing:"0.08em",marginBottom:8}}>{label}</div>
-    <div style={{fontSize:22,fontWeight:700,color:accent||"#f1f5f9",fontFamily:"'DM Mono',monospace"}}>{value}</div>
-    {sub&&<div style={{fontSize:12,color:"#6b7280",marginTop:4}}>{sub}</div>}
-  </div>
-);
-const PBadge = ({market}) => {
-  const c=MC[market]||"#94a3b8";
-  return <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,background:c+"22",color:c,border:`1px solid ${c}44`}}>{ML[market]||market}</span>;
-};
-const PSpin = () => (
-  <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:80,gap:16}}>
-    <div style={{width:36,height:36,border:"3px solid #1e293b",borderTopColor:"#22c55e",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-    <span style={{color:"#64748b",fontSize:13}}>正在讀取 Google Sheets 資料…</span>
-  </div>
-);
-
-/* ── 主元件 ─────────────────────────────────────────────────── */
-function PassiveApp() {
-  const [tab,setTab]    = useState("overview");
-  const [fund,setFund]  = useState("");
-  const [loading,setLoad] = useState(true);
-  const [isMock,setMock]  = useState(false);
-  const [updated,setUpd]  = useState("");
-  const [summary,setSum]  = useState([]);
-  const [monthly,setMon]  = useState([]);
-  const [targets,setTgt]  = useState({});
-  const [xirr,setXirr]    = useState(null);
-
-  async function load() {
-    setLoad(true);
-    try {
-      const [r1,r2,r3] = await Promise.all([
-        fetch(csvUrl("passive_summary")),
-        fetch(csvUrl("passive_monthly")),
-        fetch(csvUrl("passive_targets")),
-      ]);
-      if (!r1.ok||!r2.ok||!r3.ok) throw 0;
-      const [t1,t2,t3] = await Promise.all([r1.text(),r2.text(),r3.text()]);
-      setSum(parseCsv(t1));
-      setMon(parseCsv(t2));
-      const rawLines = t2.trim().split("\n");
-      if (rawLines.length >= 2) {
-        const dataRow = parseCsv(rawLines.slice(0,2).join("\n"));
-        const xirrVal = dataRow[0] ? ppct(dataRow[0].xirr||"") : null;
-        setXirr(xirrVal||null);
-      }
-      const tgtMap = {};
-      parseCsv(t3).forEach(r => { tgtMap[r.ticker] = ppct(r.target_pct); });
-      setTgt(tgtMap);
-      setUpd(new Date().toLocaleString("zh-TW",{hour12:false}));
-      setMock(false);
-    } catch {
-      setSum(MOCK_S); setMon(MOCK_M);
-      setTgt({ VWRA:52.25, AGGG:10, JPGL:10, AVGS:10, "0050":6.68, "0051":4.39, "006208":6.68 });
-      setXirr(70.33);
-      setUpd("⚠ 無法連線 Sheets，顯示預覽假資料");
-      setMock(true);
-    } finally { setLoad(false); }
-  }
-
-  useEffect(() => { load(); window.__passiveReload = load; }, []);
-
-  const hs = useMemo(() => summary.map(r => ({
-    ticker: r.ticker,
-    totalShares: pnum(r.total_shares),
-    avgCost: pnum(r.avg_cost),
-    currentPrice: pnum(r.current_price),
-    currentValue: pnum(r.current_value),
-    targetPct: targets[r.ticker] ?? ppct(r.target_pct),
-    actualPct: ppct(r.actual_pct),
-    diffPct: ppct(r.diff_pct),
-    xirr: ppct(r.xirr),
-    currency: (r.currency||"USD").trim(),
-    fxRate: pnum(r.fx_rate),
-    market: getMarket((r.currency||"USD").trim()),
-  })), [summary, targets]);
-
-  const total  = useMemo(() => hs.reduce((s,h)=>s+h.currentValue,0), [hs]);
-  const md     = useMemo(() => monthly.map(r=>({month:r.month,value:pnum(r.total_value),note:r.note||""})).filter(r=>r.value>0), [monthly]);
-  const fundNum = parseFloat(fund.replace(/,/g,""))||0;
-  const rb = useMemo(() => hs.map(h => {
-    const tv=(h.targetPct/100)*(total+fundNum);
-    const dv=tv-h.currentValue;
-    const pTWD=h.currency==="TWD"?h.currentPrice:h.currentPrice*h.fxRate;
-    return {...h, targetValue:tv, diffValue:dv, approxShares:pTWD>0?Math.abs(dv)/pTWD:0};
-  }), [hs, total, fundNum]);
-
-  const pie = useMemo(() => {
-    const m={};
-    hs.forEach(h=>{m[h.market]=(m[h.market]||0)+h.currentValue;});
-    return Object.entries(m).map(([market,value])=>({market,value,label:ML[market]||market}));
-  }, [hs]);
-
-  const mg = useMemo(() => {
-    if (md.length<2) return null;
-    return ((md.at(-1).value-md.at(-2).value)/md.at(-2).value)*100;
-  }, [md]);
-
-  const sym = h => h.currency==="TWD"?"NT$":h.currency==="GBP"?"£":"$";
-  const TABS = [{id:"overview",l:"資產總覽"},{id:"rebalance",l:"再平衡"},{id:"growth",l:"成長曲線"},{id:"return",l:"年化報酬"}];
-  const box = {background:"rgba(255,255,255,0.03)",borderRadius:16,border:"1px solid rgba(255,255,255,0.06)"};
-
-  return (
-    <div style={{color:"#f1f5f9",fontFamily:"'Noto Sans TC',sans-serif"}}>
-
-      {/* 狀態列 */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
-        <div style={{width:7,height:7,borderRadius:"50%",background:isMock?"#f59e0b":"#22c55e",boxShadow:`0 0 8px ${isMock?"#f59e0b":"#22c55e"}`,animation:"pulse 2s infinite"}}/>
-        <span style={{fontSize:11,color:isMock?"#f59e0b":"#22c55e",letterSpacing:"0.12em",fontWeight:600}}>
-          {isMock?"預覽模式（假資料）":"Google Sheets 即時資料"}
-        </span>
-        <span style={{color:"#334155"}}>|</span>
-        <span style={{color:"#64748b",fontSize:12}}>{updated||"讀取中…"}</span>
-      </div>
-
-      {/* KPI 卡 */}
-      {!loading&&(
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:24}}>
-          <PCard label="總資產（TWD）" value={`NT$${pfmt(total)}`} sub="含匯率換算"/>
-          <PCard label="當年度 XIRR" value={xirr!==null?pfmtP(xirr):"—"} accent={xirr!=null?(xirr>=0?"#22c55e":"#ef4444"):undefined} sub="Sheets 計算"/>
-          <PCard label="本月資產變動" value={mg!==null?pfmtP(mg):"—"} accent={mg!=null?(mg>=0?"#22c55e":"#ef4444"):undefined} sub="vs 上月底"/>
-          <PCard label="持有標的數" value={hs.length} sub="跨市場 ETF"/>
-        </div>
-      )}
-
-      {/* 子頁籤 */}
-      <div style={{display:"flex",gap:0,marginBottom:20,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{
-            background:"none",border:"none",cursor:"pointer",
-            color:tab===t.id?"#f1f5f9":"#64748b",
-            fontSize:13,fontWeight:tab===t.id?600:400,
-            padding:"8px 16px",marginBottom:-1,
-            borderBottom:tab===t.id?"2px solid #22c55e":"2px solid transparent",
-            transition:"all 0.2s",fontFamily:"'Noto Sans TC',sans-serif",
-          }}>{t.l}</button>
-        ))}
-      </div>
-
-      {loading&&<PSpin/>}
-
-      {!loading&&(
-        <div>
-
-          {/* 資產總覽 */}
-          {tab==="overview"&&(
-            <div>
-              <div style={{...box,overflow:"hidden",marginBottom:24}}>
-                <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:13,color:"#64748b",display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:4}}>
-                  <span>持股明細與配置差異</span>
-                  <span style={{fontSize:11}}>目標配置 → Sheets: passive_targets</span>
-                </div>
-                <div style={{overflowX:"auto"}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:680}}>
-                    <thead>
-                      <tr style={{color:"#64748b",borderBottom:"1px solid #1e293b",background:"rgba(0,0,0,0.2)"}}>
-                        {["代號","市場","股數","現價","市值(TWD)","目標%","實際%","差異","建議"].map(h=>(
-                          <th key={h} style={{textAlign:"left",padding:"10px 14px",fontWeight:500,whiteSpace:"nowrap"}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hs.map((h,i)=>{
-                        const ok=Math.abs(h.diffPct)<=2, over=h.diffPct>0;
-                        const dc=ok?"#22c55e":over?"#f59e0b":"#ef4444";
-                        const need=((h.targetPct-h.actualPct)/100)*total;
-                        return (
-                          <tr key={h.ticker} style={{borderBottom:"1px solid #0f172a",background:i%2===0?"transparent":"rgba(255,255,255,0.012)"}}>
-                            <td style={{padding:"14px",fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0"}}>{h.ticker}</td>
-                            <td style={{padding:"14px"}}><PBadge market={h.market}/></td>
-                            <td style={{padding:"14px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{pfmt(h.totalShares,4)}</td>
-                            <td style={{padding:"14px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{pfmt(h.currentPrice,2)}</td>
-                            <td style={{padding:"14px",fontFamily:"'DM Mono',monospace",fontWeight:600,color:"#e2e8f0"}}>NT${pfmt(h.currentValue)}</td>
-                            <td style={{padding:"14px",fontFamily:"'DM Mono',monospace",color:"#64748b"}}>{h.targetPct.toFixed(2)}%</td>
-                            <td style={{padding:"14px"}}>
-                              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                <div style={{width:44,height:4,background:"#1e293b",borderRadius:2,flexShrink:0}}>
-                                  <div style={{width:`${Math.min((h.actualPct/Math.max(h.targetPct,1))*100,150)}%`,maxWidth:"100%",height:"100%",borderRadius:2,background:MC[h.market]||"#3b82f6"}}/>
-                                </div>
-                                <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#e2e8f0"}}>{h.actualPct.toFixed(1)}%</span>
-                              </div>
-                            </td>
-                            <td style={{padding:"14px"}}>
-                              <span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:dc}}>{h.diffPct>=0?"+":""}{h.diffPct.toFixed(1)}%</span>
-                            </td>
-                            <td style={{padding:"14px"}}>
-                              {ok
-                                ? <span style={{fontSize:11,color:"#22c55e",background:"rgba(34,197,94,0.1)",padding:"3px 8px",borderRadius:5}}>✓ 正常</span>
-                                : <div>
-                                    <span style={{fontSize:11,fontWeight:700,color:over?"#f59e0b":"#22c55e",background:over?"rgba(245,158,11,0.1)":"rgba(34,197,94,0.1)",padding:"3px 8px",borderRadius:5}}>{over?"▼ 減少":"▲ 增加"}</span>
-                                    <div style={{fontSize:11,color:"#64748b",marginTop:4,fontFamily:"'DM Mono',monospace"}}>NT${pfmt(Math.abs(need))}</div>
-                                  </div>
-                              }
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{padding:"10px 20px",borderTop:"1px solid #0f172a",fontSize:12,color:"#64748b"}}>
-                  總資產 <span style={{color:"#e2e8f0",fontFamily:"'DM Mono',monospace"}}>NT${pfmt(total)}</span>　｜　差異 ±2% 以內視為正常
-                </div>
-              </div>
-
-              <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-                <div style={{...box,flex:1,minWidth:240,padding:24}}>
-                  <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>市場分布</div>
-                  <PieChart data={pie}/>
-                </div>
-                <div style={{...box,flex:1,minWidth:240,padding:24}}>
-                  <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>各標的匯率參考</div>
-                  {hs.map(h=>(
-                    <div key={h.ticker} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1e293b"}}>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0"}}>{h.ticker}</span>
-                        <PBadge market={h.market}/>
-                      </div>
-                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#94a3b8"}}>
-                        {h.currency!=="TWD"?`1 ${h.currency} = ${pfmt(h.fxRate,4)} TWD`:"台幣計價"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 再平衡 */}
-          {tab==="rebalance"&&(
-            <div>
-              <div style={{...box,padding:24,marginBottom:20}}>
-                <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>本次新投入資金（TWD）</div>
-                <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-                  <span style={{color:"#64748b",fontSize:15}}>NT$</span>
-                  <input type="text" placeholder="例如：50000" value={fund} onChange={e=>setFund(e.target.value)}
-                    style={{background:"#1e293b",border:"1px solid #334155",borderRadius:10,padding:"10px 16px",color:"#f1f5f9",fontSize:15,fontFamily:"'DM Mono',monospace",width:200}}/>
-                  {fundNum>0&&<span style={{fontSize:12,color:"#64748b"}}>再平衡總金額：NT${pfmt(total+fundNum)}</span>}
-                </div>
-              </div>
-              <div style={{...box,padding:24}}>
-                <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>各標的再平衡建議</div>
-                {rb.map(h=>{
-                  const over=h.diffValue<0, noAct=Math.abs(h.diffValue)<1000;
-                  return (
-                    <div key={h.ticker} style={{padding:"16px 0",borderBottom:"1px solid #0f172a"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:8}}>
-                        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                          <span style={{fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0",fontSize:15}}>{h.ticker}</span>
-                          <PBadge market={h.market}/>
-                        </div>
-                        <div style={{textAlign:"right"}}>
-                          {noAct
-                            ? <span style={{fontSize:13,color:"#22c55e"}}>✓ 無需調整</span>
-                            : <>
-                                <div style={{fontSize:14,fontWeight:700,fontFamily:"'DM Mono',monospace",color:over?"#f59e0b":"#22c55e"}}>
-                                  {over?"▼ 減少":"▲ 增加"} NT${pfmt(Math.abs(h.diffValue))}
-                                </div>
-                                <div style={{fontSize:11,color:"#64748b",marginTop:2}}>約 {h.approxShares.toFixed(2)} 股　@　{sym(h)}{pfmt(h.currentPrice,2)}</div>
-                              </>
-                          }
-                        </div>
-                      </div>
-                      <div style={{fontSize:12,color:"#64748b",display:"flex",gap:12,flexWrap:"wrap"}}>
-                        <span>現值 NT${pfmt(h.currentValue)}</span>
-                        <span>→</span>
-                        <span>目標 NT${pfmt(h.targetValue)} ({h.targetPct.toFixed(2)}%)</span>
-                      </div>
-                    </div>
-                  );
-                })}
-                {fundNum<=0&&(
-                  <div style={{marginTop:16,padding:12,background:"rgba(59,130,246,0.08)",borderRadius:10,border:"1px solid rgba(59,130,246,0.2)",fontSize:12,color:"#93c5fd"}}>
-                    ↑ 填入新投入金額，計算最佳資金分配方式
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 成長曲線 */}
-          {tab==="growth"&&(
-            <div style={{...box,padding:24}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:12}}>
-                <div>
-                  <div style={{fontSize:13,color:"#64748b"}}>每月資產總值</div>
-                  <div style={{fontSize:24,fontWeight:700,fontFamily:"'DM Mono',monospace",color:"#22c55e",marginTop:4}}>NT${pfmt(md.at(-1)?.value||0)}</div>
-                  {md.at(-1)?.note&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>{md.at(-1).note}</div>}
-                </div>
-                {md.length>=2&&(
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:12,color:"#64748b"}}>累計成長（{md[0].month} 起）</div>
-                    <div style={{fontSize:16,fontWeight:700,color:"#22c55e",fontFamily:"'DM Mono',monospace"}}>
-                      {pfmtP(((md.at(-1).value-md[0].value)/md[0].value)*100)}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {md.length>0
-                ? <LineChart data={md} height={260}/>
-                : <div style={{textAlign:"center",color:"#64748b",padding:40}}>尚無月度資料，請在 passive_monthly 填入紀錄</div>
-              }
-            </div>
-          )}
-
-          {/* 年化報酬 */}
-          {tab==="return"&&(
-            <div>
-              <div style={{background:"linear-gradient(135deg,rgba(34,197,94,0.12),rgba(16,185,129,0.06))",border:"1px solid rgba(34,197,94,0.25)",borderRadius:20,padding:"28px 32px",marginBottom:20}}>
-                <div style={{fontSize:13,color:"#86efac",letterSpacing:"0.08em",marginBottom:8}}>當年度整體年化報酬（XIRR）</div>
-                <div style={{fontSize:56,fontWeight:800,fontFamily:"'Syne',sans-serif",color:xirr!=null?(xirr>=0?"#22c55e":"#ef4444"):"#64748b",lineHeight:1,marginBottom:16}}>
-                  {xirr!==null?(xirr>=0?"+":"")+xirr.toFixed(2)+"%":"—"}
-                </div>
-                <div style={{fontSize:11,color:"#64748b"}}>計算基準：{new Date().getFullYear()} 年初資產 → 今日總市值　｜　Sheets 更新後點「重新整理」即同步</div>
-              </div>
-              <div style={{...box,padding:24}}>
-                <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>持倉成本明細</div>
-                <div style={{overflowX:"auto"}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:560}}>
-                    <thead>
-                      <tr style={{color:"#64748b",borderBottom:"1px solid #1e293b"}}>
-                        {["代號","市場","持股數","平均成本","現價","現值(TWD)"].map(h=>(
-                          <th key={h} style={{textAlign:"left",padding:"8px 12px",fontWeight:500}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hs.map((h,i)=>(
-                        <tr key={h.ticker} style={{borderBottom:"1px solid #0f172a",background:i%2===0?"transparent":"rgba(255,255,255,0.012)"}}>
-                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:700,color:"#e2e8f0"}}>{h.ticker}</td>
-                          <td style={{padding:"13px 12px"}}><PBadge market={h.market}/></td>
-                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{pfmt(h.totalShares,4)}</td>
-                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{pfmt(h.avgCost,2)}</td>
-                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",color:"#94a3b8"}}>{sym(h)}{pfmt(h.currentPrice,2)}</td>
-                          <td style={{padding:"13px 12px",fontFamily:"'DM Mono',monospace",fontWeight:600,color:"#e2e8f0"}}>NT${pfmt(h.currentValue)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("passive-root")).render(<PassiveApp/>);
-</script>
 </body>
 </html>
