@@ -13,7 +13,7 @@ const SHEET_ID        = '1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg';
 const SHEET_NAME      = 'cashflow';
 const TELEGRAM_API    = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN;
 const GEMINI_MODEL    = 'gemini-2.0-flash-lite';
-const EXEC_URL        = 'https://script.google.com/macros/s/AKfycbwi7jfwTzOkw4CwEYVO_nHgCsZBKyfSDmgq5A07KjjxvfEBKpSEOMWt_lBjbgcV5nOa/exec';
+const EXEC_URL        = 'https://old-bar-1a17.s080075123.workers.dev';
 const ALLOWED_USER_ID = 1041361870;
 
 // ── 規則解析表 ────────────────────────────────────────────────
@@ -54,7 +54,7 @@ function doPost(e) {
       const cache = CacheService.getScriptCache();
       const key   = 'uid_' + updateId;
       if (cache.get(key) !== null) return ok();
-      cache.put(key, '1', 300);
+      cache.put(key, '1', 3600);  // 1 小時 TTL，防止長時間重試導致重複處理
     }
 
     // ── 權限 ────────────────────────────────────────────────
@@ -107,8 +107,10 @@ function doPost(e) {
     if (parsed.collectible_flag) reply += '\n🏷️ 已標記為收藏品';
     reply += '\n\n如需刪除請回覆「刪除上一筆」';
 
-    // ── 寫入 Sheets + 回覆 Telegram（並行，節省 ~500ms）────
-    writeAndReply(parsed, chatId, reply);
+    // ── 寫入 Sheets ─────────────────────────────────────────
+    writeToSheet(parsed);
+    // ── 回覆使用者 ──────────────────────────────────────────
+    sendMsg(chatId, reply);
 
   } catch (err) {
     Logger.log('doPost error: ' + err.toString());
@@ -119,44 +121,14 @@ function doPost(e) {
   return ok();
 }
 
-// ══════════════════════════════════════════════════════════════
-//  並行：Sheets 寫入 + Telegram 回覆同時執行
-//  fetchAll() 是真正的並行，時間 = max(Sheets, Telegram) 而非相加
-// ══════════════════════════════════════════════════════════════
-function writeAndReply(data, chatId, replyText) {
-  const token = ScriptApp.getOAuthToken();
-  const row   = [
+// ── 寫入 Sheets（SpreadsheetApp，無 OAuth 問題）────────────
+function writeToSheet(data) {
+  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
+  sheet.appendRow([
     data.date, data.amount, data.type, data.category,
     data.card, data.note||'', data.collectible_flag ? 'TRUE' : 'FALSE'
-  ];
-
-  const results = UrlFetchApp.fetchAll([
-    // ① 寫入 Google Sheets（REST API）
-    {
-      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
-           '/values/' + encodeURIComponent(SHEET_NAME + '!A:G') +
-           ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',
-      method: 'post',
-      headers: { 'Authorization': 'Bearer ' + token },
-      contentType: 'application/json',
-      payload: JSON.stringify({ values: [row] }),
-      muteHttpExceptions: true
-    },
-    // ② 傳送 Telegram 回覆
-    {
-      url: TELEGRAM_API + '/sendMessage',
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify({ chat_id: chatId, text: replyText }),
-      muteHttpExceptions: true
-    }
   ]);
-
-  results.forEach(function(r, i) {
-    if (r.getResponseCode() !== 200) {
-      Logger.log('writeAndReply[' + i + '] error ' + r.getResponseCode() + ': ' + r.getContentText().slice(0,300));
-    }
-  });
+  SpreadsheetApp.flush();
 }
 
 // ── 本地規則解析（< 5ms）────────────────────────────────────
