@@ -247,12 +247,20 @@ function ok() { return ContentService.createTextOutput('ok'); }
 // ══════════════════════════════════════════════════════════════
 //  工具函數（手動執行）
 // ══════════════════════════════════════════════════════════════
+const CF_SECRET = 'cashie2026xK9mP';  // 必須與 Cloudflare Worker 的 SECRET_TOKEN 一致
+
 function stopSpam() {
   UrlFetchApp.fetch(TELEGRAM_API+'/deleteWebhook?drop_pending_updates=true');
   Utilities.sleep(1500);
-  Logger.log(UrlFetchApp.fetch(TELEGRAM_API+'/setWebhook?url='+encodeURIComponent(EXEC_URL)).getContentText());
+  Logger.log(UrlFetchApp.fetch(
+    TELEGRAM_API+'/setWebhook?url='+encodeURIComponent(EXEC_URL)+'&secret_token='+CF_SECRET
+  ).getContentText());
 }
-function setWebhook()   { Logger.log(UrlFetchApp.fetch(TELEGRAM_API+'/setWebhook?url='+encodeURIComponent(EXEC_URL)).getContentText()); }
+function setWebhook() {
+  Logger.log(UrlFetchApp.fetch(
+    TELEGRAM_API+'/setWebhook?url='+encodeURIComponent(EXEC_URL)+'&secret_token='+CF_SECRET
+  ).getContentText());
+}
 function checkWebhook() { Logger.log(UrlFetchApp.fetch(TELEGRAM_API+'/getWebhookInfo').getContentText()); }
 function resetProcessedIds() { PropertiesService.getScriptProperties().deleteProperty('processedIds'); Logger.log('cleared'); }
 function testGemini() {
