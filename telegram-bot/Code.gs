@@ -1,6 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 //  Cashie 記帳機器人 — Google Apps Script
 //  解析策略：本地規則（快速）→ Gemini（僅限模糊輸入）
+//  並發策略：doPost 層單一大鎖，序列化所有執行，永不拋出
 // ══════════════════════════════════════════════════════════════
 
 const TELEGRAM_TOKEN  = '8584996875:AAGaWTZqwqYZlUonZzQe5SVd1lXGmD6qKwM';
@@ -35,53 +36,68 @@ const CATEGORY_RULES = [
 const CARD_KEYWORDS = ['台新','玉山','國泰','中信','聯邦','永豐','一卡通','悠遊卡','Line Pay','linepay','街口','Apple Pay','JCB'];
 
 // ══════════════════════════════════════════════════════════════
-//  去重：用 ID Set（不用 maxId）
-//  - 回傳 'busy'   → Lock 搶不到，doPost 應 throw 讓 Telegram 重試
-//  - 回傳 true     → 已處理過，跳過
-//  - 回傳 false    → 新訊息，繼續處理
+//  去重輔助（在大鎖保護下呼叫，不需自己加鎖）
 // ══════════════════════════════════════════════════════════════
-function checkDuplicate(updateId) {
+function isDuplicate(updateId) {
   if (!updateId) return false;
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(2000)) return 'busy';   // ← 等不到就回報 busy，讓 Telegram 重試
-  try {
-    const props = PropertiesService.getScriptProperties();
-    const ids   = JSON.parse(props.getProperty('processedIds') || '[]');
-    if (ids.indexOf(updateId) !== -1) return true;
-    ids.push(updateId);
-    if (ids.length > 30) ids.splice(0, ids.length - 30);
-    props.setProperty('processedIds', JSON.stringify(ids));
-    return false;
-  } finally {
-    lock.releaseLock();
-  }
+  const props = PropertiesService.getScriptProperties();
+  const ids   = JSON.parse(props.getProperty('processedIds') || '[]');
+  return ids.indexOf(updateId) !== -1;
 }
 
-// ── Webhook 入口 ──────────────────────────────────────────────
+function markProcessed(updateId) {
+  if (!updateId) return;
+  const props = PropertiesService.getScriptProperties();
+  const ids   = JSON.parse(props.getProperty('processedIds') || '[]');
+  ids.push(updateId);
+  if (ids.length > 50) ids.splice(0, ids.length - 50);
+  props.setProperty('processedIds', JSON.stringify(ids));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Webhook 入口
+//
+//  並發策略：
+//  • 在 doPost 最頂層取得單一腳本鎖（waitLock 25s）
+//  • 鎖保護整個流程：去重 + 解析 + 寫入
+//  • 永不拋出例外 → Apps Script 永遠回傳 200 → 不產生 302
+//  • 第二則訊息靜待第一則完成後再執行
+// ══════════════════════════════════════════════════════════════
 function doPost(e) {
   var chatId = null;
+  const lock = LockService.getScriptLock();
+
+  // 等待前一筆完成（最多 25 秒）；幾乎不可能超時（正常 < 5s）
+  try {
+    lock.waitLock(25000);
+  } catch (lockErr) {
+    // 極端罕見：25 秒都等不到，記 log 後直接回 200
+    // （不拋出 → 不觸發 302 → 不產生 Telegram 重試風暴）
+    Logger.log('Lock wait timeout: ' + lockErr);
+    return ok();
+  }
+
   try {
     const body     = JSON.parse(e.postData.contents);
     const updateId = body.update_id;
     const msg      = body.message;
     if (!msg) return ok();
 
-    // ── 去重 ──────────────────────────────────────────────────
-    const dupResult = checkDuplicate(updateId);
-    if (dupResult === 'busy') {
-      // Lock 被佔用 → 拋出例外讓 Apps Script 回 500，Telegram 會自動重試
-      throw new Error('LOCK_BUSY');
+    // ── 去重（鎖內安全讀寫）────────────────────────────────
+    if (isDuplicate(updateId)) {
+      Logger.log('Duplicate update_id: ' + updateId + ', skipping.');
+      return ok();
     }
-    if (dupResult === true) return ok();   // 已處理，靜默跳過
+    markProcessed(updateId);
 
-    // ── 權限 ──────────────────────────────────────────────────
+    // ── 權限 ────────────────────────────────────────────────
     if (ALLOWED_USER_ID !== 0 && msg.from.id !== ALLOWED_USER_ID) return ok();
 
     chatId = msg.chat.id;
     const text = (msg.text || '').trim();
     if (!text) return ok();
 
-    // ── 指令 ──────────────────────────────────────────────────
+    // ── 指令 ────────────────────────────────────────────────
     if (text === '/start' || text === '/help') {
       sendMsg(chatId,
         '👋 嗨！我是你的 Cashie 記帳機器人\n\n' +
@@ -99,7 +115,7 @@ function doPost(e) {
       return ok();
     }
 
-    // ── 解析：本地優先，類別為「其他」才用 Gemini ─────────────
+    // ── 解析：本地優先，類別為「其他」才用 Gemini ───────────
     var parsed = parseLocally(text);
     if (parsed && parsed.category === '其他') {
       var geminiResult = parseWithGemini(text);
@@ -111,7 +127,7 @@ function doPost(e) {
       return ok();
     }
 
-    // ── 寫入（有自己的 Lock + flush）─────────────────────────
+    // ── 寫入 Sheets（鎖保護中，不需再加鎖）────────────────
     writeToSheet(parsed);
 
     const E = { income:'💚', fixed:'🏠', variable:'🛍️', investment:'📈' };
@@ -128,15 +144,13 @@ function doPost(e) {
     sendMsg(chatId, reply);
 
   } catch (err) {
-    if (err.message === 'LOCK_BUSY') {
-      // 讓 Apps Script 回傳 500，Telegram 自動排隊重試
-      throw err;
-    }
-    // 其他錯誤：記 log 並通知使用者，不再靜音
+    // 任何錯誤都不再拋出（防止 302），記 log 並通知使用者
     Logger.log('doPost error: ' + err.toString());
     if (chatId) {
       try { sendMsg(chatId, '❌ 發生錯誤，請稍後再試\n(' + err.message + ')'); } catch(e2) {}
     }
+  } finally {
+    lock.releaseLock();
   }
   return ok();
 }
@@ -185,20 +199,14 @@ function parseWithGemini(text) {
   } catch(err) { Logger.log('Gemini: ' + err); return null; }
 }
 
-// ── 寫入 Sheets（獨立 Lock + flush 防衝突）──────────────────
+// ── 寫入 Sheets（在大鎖保護下執行，不需再加鎖）────────────
 function writeToSheet(data) {
   const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(SHEET_NAME);
-  const lock  = LockService.getScriptLock();
-  lock.waitLock(10000);   // 最多等 10 秒，確保每筆都能寫入
-  try {
-    sheet.appendRow([
-      data.date, data.amount, data.type, data.category,
-      data.card, data.note||'', data.collectible_flag ? 'TRUE' : 'FALSE'
-    ]);
-    SpreadsheetApp.flush();  // 強制寫入完成後才釋放 Lock
-  } finally {
-    lock.releaseLock();
-  }
+  sheet.appendRow([
+    data.date, data.amount, data.type, data.category,
+    data.card, data.note||'', data.collectible_flag ? 'TRUE' : 'FALSE'
+  ]);
+  SpreadsheetApp.flush();
 }
 
 // ── 刪除最後一筆 ──────────────────────────────────────────────
