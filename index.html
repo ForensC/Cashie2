@@ -229,6 +229,7 @@ function onRefresh() {
   showStatus('SYNCING FROM GOOGLE SHEETS...');
   Promise.all([
     fetchSheet(SHEETS.active),
+    fetchSheet('watchlist',    SHEET_ID).catch(()=>[]),
     fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
     fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
     fetchSheet(SHEETS.coll,    COLL_SHEET_ID),
@@ -250,175 +251,14 @@ function renderTab() {
   else if (currentTab === 'coll') renderColl();
 }
 
-/* ─────────── ACTIVE TAB ─────────── */
-function renderActive() {
-  const rows = cache[SHEETS.active] || [];
-  if (!rows.length) { document.getElementById('content').innerHTML = '<div class="empty"><span class="spin"></span> LOADING...</div>'; return; }
-  const data = rows.slice(3).filter(r => r[0] && r[0] !== '合計');
-  const ytdBase   = parseFloat(rows[1]?.[13]) || null;
-  const totalMV   = data.reduce((s,r) => s + (parseFloat(r[5])||0), 0);
-  const totalCost = data.reduce((s,r) => s + (parseFloat(r[2]||0) * parseFloat(r[3]||0)), 0);
-  const totalPnL  = data.reduce((s,r) => s + (parseFloat(r[6])||0), 0);
-  const totalRet  = totalCost > 0 ? totalPnL / totalCost : null;
-  const ytdRet    = ytdBase && ytdBase > 0 ? (totalMV - ytdBase) / ytdBase : null;
-
-  const MK_COLOR = { US:'oklch(0.62 0.22 25)', TW:'oklch(0.72 0.17 145)' };
-  const tableRows = data.map(r => {
-    const ret = parseFloat(r[7]);
-    const mk = r[1]==='US'?'US':'TW';
-    return '<tr>'
-      + '<td><span class="code" style="color:var(--cream)">' + r[0] + '</span></td>'
-      + '<td><span class="mbadge" style="background:' + MK_COLOR[mk] + '">' + (mk==='US'?'US':'TW') + '</span></td>'
-      + '<td class="mn" style="opacity:.8">' + fmt.n(parseFloat(r[2])) + '</td>'
-      + '<td class="mn" style="opacity:.8">' + parseFloat(r[3]).toFixed(2) + '</td>'
-      + '<td class="mn" style="opacity:.8">' + parseFloat(r[4]).toFixed(2) + '</td>'
-      + '<td class="mn" style="font-weight:700">' + fmt.n(parseFloat(r[5])) + '</td>'
-      + '<td class="' + cls(parseFloat(r[6])) + '" style="font-weight:700">' + fmt.n(parseFloat(r[6])) + '</td>'
-      + '<td class="' + cls(ret) + '" style="font-weight:700">' + fmt.p2(ret) + '</td>'
-      + '<td class="mn" style="font-size:11px;opacity:.55">' + fmt.d(r[8]) + '</td>'
-      + '</tr>';
-  }).join('');
-
-  // Best & worst position for hero callouts
-  const best  = [...data].sort((a,b)=>(parseFloat(b[7])||0)-(parseFloat(a[7])||0))[0];
-  const worst = [...data].sort((a,b)=>(parseFloat(a[7])||0)-(parseFloat(b[7])||0))[0];
-
-  // Live clock for hero
-  const now = new Date();
-  const pad2 = n => String(n).padStart(2,'0');
-  const timeStr = pad2(now.getHours())+':'+pad2(now.getMinutes())+':'+pad2(now.getSeconds());
-
-  const pnlColor = totalPnL>=0?'var(--green)':'var(--signal)';
-  const ytdColor = ytdRet==null?'var(--cream)':(ytdRet>=0?'var(--green)':'var(--signal)');
-
-  // Sparkbar visualisation of position values (top 8)
-  const top = [...data].sort((a,b)=>(parseFloat(b[5])||0)-(parseFloat(a[5])||0)).slice(0,12);
-  const maxVal = Math.max(...top.map(r=>parseFloat(r[5])||0), 1);
-  const sparkBars = top.map(r=>{
-    const v = parseFloat(r[5])||0;
-    const h = Math.max(8, Math.round((v/maxVal)*96));
-    const ret = parseFloat(r[7])||0;
-    const c = ret>=0 ? 'var(--green)' : 'var(--signal)';
-    return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0">'
-      + '<div style="width:100%;max-width:32px;background:' + c + ';height:' + h + 'px;border-radius:2px 2px 0 0"></div>'
-      + '<div class="mono" style="font-size:9px;opacity:.7;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48px">' + r[0] + '</div>'
-      + '</div>';
-  }).join('');
-
-  // Hero: 3-column trading deck
-  const heroHtml =
-    '<div style="display:grid;grid-template-columns:minmax(240px,1fr) minmax(360px,2fr) minmax(240px,1fr);gap:14px;margin-bottom:14px">'
-
-    // LEFT — trader id
-    + '<div style="background:var(--ink);color:var(--cream);border-radius:28px;padding:22px;position:relative;overflow:hidden;min-height:340px;display:flex;flex-direction:column;justify-content:space-between">'
-    +   '<div style="display:flex;justify-content:space-between;align-items:flex-start">'
-    +     '<div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.6">TRADER.ID</div>'
-    +     '<div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.6">RANK · 02</div>'
-    +   '</div>'
-    +   '<div>'
-    +     '<div class="display" style="font-size:42px;color:var(--cream)">TRADE.</div>'
-    +     '<div class="display" style="font-size:30px;color:oklch(0.62 0.22 25)">DECK</div>'
-    +     '<div class="mono" style="font-size:10px;opacity:.55;margin-top:10px;line-height:1.5">ALPHA.SEEKER<br/><span class="blink">⏵</span> SESSION OPEN</div>'
-    +   '</div>'
-    +   '<div>'
-    +     '<div class="mono" style="font-size:10px;opacity:.55;margin-bottom:8px;letter-spacing:.1em">POSITION DISTRIBUTION</div>'
-    +     '<div class="sparks" style="height:96px;align-items:flex-end;display:flex">' + sparkBars + '</div>'
-    +   '</div>'
-    + '</div>'
-
-    // CENTER — big P&L
-    + '<div style="background:oklch(0.62 0.22 25);color:#fff;border-radius:28px;padding:28px 32px;position:relative;overflow:hidden;min-height:340px;display:flex;flex-direction:column;justify-content:space-between">'
-    +   '<div style="display:flex;justify-content:space-between;align-items:center">'
-    +     '<div class="mono" style="font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.92">⏵ LIVE / ' + timeStr + '</div>'
-    +     '<div class="mono" style="font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.92">DECK ● ACTIVE</div>'
-    +   '</div>'
-    +   '<div>'
-    +     '<div class="mono" style="font-size:11px;opacity:.9;letter-spacing:.18em;margin-bottom:10px">MARKET.VALUE / TWD</div>'
-    +     '<div class="stamp" style="font-size:clamp(40px,5.8vw,84px);color:#0d0d10;line-height:.88;letter-spacing:-.02em">$' + fmt.n(totalMV) + '</div>'
-    +     '<div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">'
-    +       '<span class="chip dark"><span class="star">★</span> P&L · ' + (totalPnL>=0?'+':'') + fmt.n(totalPnL) + '</span>'
-    +       '<span class="chip dark"><span class="star">★</span> RET · ' + fmt.p2(totalRet) + '</span>'
-    +       '<span class="chip dark"><span class="star">★</span> POS · ' + String(data.length).padStart(2,'0') + '</span>'
-    +     '</div>'
-    +   '</div>'
-    +   '<div class="mono" style="font-size:10px;opacity:.85;letter-spacing:.1em;line-height:1.6">'
-    +     'COST.BASIS: NT$' + fmt.n(totalCost) + '<br/>YTD.RETURN: ' + (ytdRet!=null ? fmt.p2(ytdRet) : '— / NEEDS BASE')
-    +   '</div>'
-    + '</div>'
-
-    // RIGHT — top + bottom callouts
-    + '<div style="display:flex;flex-direction:column;gap:14px">'
-    +   (best ? (
-        '<div style="background:var(--cream);border-radius:24px;padding:18px 22px;flex:1;min-height:160px;display:flex;flex-direction:column;justify-content:space-between">'
-        + '<div style="display:flex;justify-content:space-between"><div class="mono" style="font-size:10px;letter-spacing:.14em;opacity:.55">TOP / GAINER</div><span class="mbadge" style="background:' + (best[1]==='US'?MK_COLOR.US:MK_COLOR.TW) + '">' + (best[1]==='US'?'US':'TW') + '</span></div>'
-        + '<div><div class="stamp" style="font-size:36px">' + best[0] + '</div><div class="stamp" style="font-size:24px;color:var(--green);margin-top:4px">' + fmt.p2(parseFloat(best[7])) + '</div></div>'
-        + '<div class="mono" style="font-size:10px;opacity:.6">P&L NT$' + fmt.n(parseFloat(best[6])||0) + '</div>'
-        + '</div>') : '')
-    +   (worst && data.length>1 ? (
-        '<div style="background:var(--cream);border-radius:24px;padding:18px 22px;flex:1;min-height:160px;display:flex;flex-direction:column;justify-content:space-between">'
-        + '<div style="display:flex;justify-content:space-between"><div class="mono" style="font-size:10px;letter-spacing:.14em;opacity:.55">BOTTOM / LOSER</div><span class="mbadge" style="background:' + (worst[1]==='US'?MK_COLOR.US:MK_COLOR.TW) + '">' + (worst[1]==='US'?'US':'TW') + '</span></div>'
-        + '<div><div class="stamp" style="font-size:36px">' + worst[0] + '</div><div class="stamp" style="font-size:24px;color:' + (parseFloat(worst[7])<0?'var(--signal)':'var(--amber)') + ';margin-top:4px">' + fmt.p2(parseFloat(worst[7])) + '</div></div>'
-        + '<div class="mono" style="font-size:10px;opacity:.6">P&L NT$' + fmt.n(parseFloat(worst[6])||0) + '</div>'
-        + '</div>') : '')
-    + '</div>'
-
-    + '</div>';
-
-  // Ticker — scrolling positions
-  const tickerHtml = data.length
-    ? '<div style="background:var(--ink);color:var(--cream);border-radius:999px;padding:12px 4px;margin-bottom:18px;overflow:hidden">'
-      + '<div class="ticker-wrap"><div class="ticker mono" style="font-size:12px;letter-spacing:.08em">'
-      + [0,1].map(k =>
-          '<div>' + data.map(r => {
-            const ret = parseFloat(r[7])||0;
-            const c = ret>=0 ? 'var(--green)' : 'var(--signal)';
-            return '<span style="display:inline-flex;align-items:center;gap:10px">'
-              + '<span style="color:oklch(0.62 0.22 25);font-weight:700">●</span>'
-              + '<span style="font-weight:700">' + r[0] + '</span>'
-              + '<span style="opacity:.7">$' + parseFloat(r[4]).toFixed(2) + '</span>'
-              + '<span style="color:' + c + '">' + fmt.p2(ret) + '</span>'
-              + '<span style="opacity:.5">|</span>'
-              + '</span>';
-          }).join('') + '</div>'
-        ).join('')
-      + '</div></div></div>'
-    : '';
-
-  document.getElementById('content').innerHTML =
-    heroHtml + tickerHtml
-    + '<div class="kpi-row">'
-    +   '<div class="kpi"><div class="kpi-label">COST.BASIS / TWD</div><div class="kpi-value" style="color:var(--cream)">' + fmt.n(totalCost) + '</div><div class="kpi-sub">TOTAL INVESTED</div></div>'
-    +   '<div class="kpi"><div class="kpi-label">UNREALIZED P&amp;L</div><div class="kpi-value" style="color:' + pnlColor + '">' + (totalPnL>=0?'+':'') + fmt.n(totalPnL) + '</div><div class="kpi-sub">' + fmt.p2(totalRet) + '</div></div>'
-    +   '<div class="kpi"><div class="kpi-label">YTD PERFORMANCE</div><div class="kpi-value" style="color:' + ytdColor + '">' + (ytdRet!=null?fmt.p2(ytdRet):'—') + '</div><div class="kpi-sub">' + (ytdBase?'BASE NT$'+fmt.n(ytdBase):'NEEDS N2 BASE') + '</div></div>'
-    +   '<div class="kpi cream"><div class="kpi-label" style="opacity:.5">POSITIONS / COUNT</div><div class="kpi-value" style="color:var(--ink)">' + String(data.length).padStart(2,'0') + '</div><div class="kpi-sub">ACTIVE</div></div>'
-    + '</div>'
-    + '<div class="section dark">'
-    +   '<div class="section-hd">'
-    +     '<div><div class="section-title">POSITION / MATRIX</div><div class="section-sub">主動投資持倉明細</div></div>'
-    +     '<span class="chip dark"><span class="star">★</span> ' + data.length + ' POSITIONS</span>'
-    +   '</div>'
-    +   (data.length
-      ? '<div class="tbl-wrap"><table class="t"><thead><tr>'
-        + '<th>SYMBOL<span class="zh">標的</span></th>'
-        + '<th>MKT<span class="zh">市場</span></th>'
-        + '<th>SHARES<span class="zh">股數</span></th>'
-        + '<th>AVG<span class="zh">均價</span></th>'
-        + '<th>NOW<span class="zh">現價</span></th>'
-        + '<th>VALUE<span class="zh">市值</span></th>'
-        + '<th>P&amp;L<span class="zh">損益</span></th>'
-        + '<th>RET<span class="zh">投報率</span></th>'
-        + '<th>BUY<span class="zh">買入日</span></th>'
-        + '</tr></thead><tbody>' + tableRows + '</tbody></table></div>'
-      : '<div class="empty">EMPTY / 試算表中尚無資料</div>')
-    + '</div>'
-    + '<div style="margin-top:14px;padding:14px 18px;background:var(--ink);color:var(--cream);border-radius:14px;font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:.08em;opacity:.85">// TIP — 在 Google Sheets「主動投資」E欄更新現價，N2 填入年初市值以計算 YTD</div>';
-}
+/* ─────────── ACTIVE TAB — see tabs/active.js ─────────── */
 
 /* prefetch */
 (async () => {
   try {
     await Promise.all([
       fetchSheet(SHEETS.active),
+      fetchSheet('watchlist',    SHEET_ID).catch(()=>[]),
       fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
       fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
       fetchSheet(SHEETS.coll,    COLL_SHEET_ID),
@@ -432,6 +272,7 @@ function renderActive() {
 </script>
 
 <!-- per-tab logic in external files -->
+<script src="tabs/active.js"></script>
 <script src="tabs/cashflow.js"></script>
 <script src="tabs/collections.js"></script>
 <script type="text/babel" src="tabs/passive.jsx"></script>
