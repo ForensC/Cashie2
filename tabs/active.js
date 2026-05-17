@@ -27,7 +27,8 @@ function renderActive() {
 
 /* ─────────────── parsers ──────────────────────────────────────── */
 function _actParse(rows) {
-  return rows.slice(1).filter(r => r[3]).map(r => {
+  // gviz strips header row into cols[], so rows[0] is already first data row
+  return rows.filter(r => r[3] && !isNaN(Number(r[0]))).map(r => {
     const shares  = parseFloat(r[6])  || 0;
     const cost    = parseFloat(r[7])  || 0;
     const cur     = parseFloat(r[8])  || 0;
@@ -69,7 +70,7 @@ function _actParse(rows) {
 }
 
 function _actParseWatch(rows) {
-  return rows.slice(1).filter(r => r[2]).map(r => ({
+  return rows.filter(r => r[2] && r[2] !== 'ticker').map(r => ({
     market:     String(r[0] || ''),
     account:    String(r[1] || ''),
     ticker:     String(r[2] || ''),
