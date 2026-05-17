@@ -172,27 +172,38 @@ function _actOverviewHtml() {
   const open = _actRows.filter(p => !p.isSold);
   if (!open.length) return '<div class="empty">NO OPEN POSITIONS</div>';
 
-  const accounts = [...new Set(open.map(p => p.account).filter(Boolean))].sort();
-
-  const acctStats = accounts.map(acc => {
-    const ps    = open.filter(p => p.account === acc);
-    const basis = ps.reduce((s, p) => s + p.basis, 0);
-    const pnl   = ps.filter(p => p.pnl !== null).reduce((s, p) => s + p.pnl, 0);
-    const ret   = basis > 0 && ps.some(p => p.ret !== null) ? pnl / basis : null;
-    const mkt   = ps[0]?.market || 'TW';
-    return { acc, ps, basis, pnl, ret, mkt };
+  // Group by account × market — never mix TWD and USD
+  const groupMap = {};
+  open.forEach(p => {
+    const key = p.account + '||' + p.market;
+    if (!groupMap[key]) groupMap[key] = { acc: p.account, mkt: p.market, ps: [] };
+    groupMap[key].ps.push(p);
   });
+  const groups = Object.values(groupMap).map(g => {
+    const basis  = g.ps.reduce((s, p) => s + p.basis, 0);
+    const mv     = g.ps.reduce((s, p) => s + (p.cur > 0 ? p.cur * p.shares : p.basis), 0);
+    const knownPnl = g.ps.filter(p => p.pnl !== null);
+    const pnl    = knownPnl.length ? knownPnl.reduce((s, p) => s + p.pnl, 0) : null;
+    const ret    = (pnl !== null && basis > 0) ? pnl / basis : null;
+    const hasMv  = g.ps.some(p => p.cur > 0);
+    return { ...g, basis, mv, pnl, ret, hasMv };
+  }).sort((a, b) => a.acc.localeCompare(b.acc) || a.mkt.localeCompare(b.mkt));
 
-  const twd = acctStats.filter(a => a.mkt !== 'US');
-  const usd = acctStats.filter(a => a.mkt === 'US');
-  const twdBasis = twd.reduce((s, a) => s + a.basis, 0);
-  const twdPnl   = twd.reduce((s, a) => s + a.pnl, 0);
-  const twdRet   = twdBasis > 0 && twd.some(a => a.ret !== null) ? twdPnl / twdBasis : null;
-  const usdBasis = usd.reduce((s, a) => s + a.basis, 0);
-  const usdPnl   = usd.reduce((s, a) => s + a.pnl, 0);
-  const usdRet   = usdBasis > 0 && usd.some(a => a.ret !== null) ? usdPnl / usdBasis : null;
+  // Aggregate totals (split by currency)
+  const twGroups  = groups.filter(g => g.mkt !== 'US');
+  const usGroups  = groups.filter(g => g.mkt === 'US');
+  const _agg = gs => {
+    const basis = gs.reduce((s, g) => s + g.basis, 0);
+    const mv    = gs.reduce((s, g) => s + g.mv, 0);
+    const pnl   = gs.some(g => g.pnl !== null)
+      ? gs.filter(g => g.pnl !== null).reduce((s, g) => s + g.pnl, 0) : null;
+    const ret   = (pnl !== null && basis > 0) ? pnl / basis : null;
+    return { basis, mv, pnl, ret };
+  };
+  const twAgg = _agg(twGroups);
+  const usAgg = _agg(usGroups);
 
-  // sparkbars by position size
+  // sparkbars (by cost basis, coloured by ret)
   const top10  = [...open].sort((a, b) => b.basis - a.basis).slice(0, 10);
   const maxB   = Math.max(...top10.map(p => p.basis), 1);
   const sparks = top10.map(p => {
@@ -204,82 +215,7 @@ function _actOverviewHtml() {
     </div>`;
   }).join('');
 
-  // hero
-  const now = new Date();
-  const p2  = n => String(n).padStart(2, '0');
-  const ts  = p2(now.getHours()) + ':' + p2(now.getMinutes()) + ':' + p2(now.getSeconds());
-  const withRet = open.filter(p => p.ret !== null);
-  const best  = withRet.length ? [...withRet].sort((a, b) => b.ret - a.ret)[0] : null;
-  const worst = withRet.length > 1 ? [...withRet].sort((a, b) => a.ret - b.ret)[0] : null;
-
-  const hero = `
-    <div style="display:grid;grid-template-columns:minmax(190px,1fr) minmax(260px,2fr) minmax(190px,1fr);
-      gap:14px;margin-bottom:14px">
-
-      <div style="background:var(--ink);color:var(--cream);border-radius:28px;padding:22px;
-        display:flex;flex-direction:column;justify-content:space-between;min-height:290px">
-        <div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.55">ACTIVE / DECK</div>
-        <div>
-          <div class="display" style="font-size:40px">TRADE.</div>
-          <div class="display" style="font-size:28px;color:oklch(0.62 0.22 25)">DECK</div>
-          <div class="mono" style="font-size:10px;opacity:.5;margin-top:8px;line-height:1.6">
-            ALPHA.SEEKER<br/><span class="blink">⏵</span> SESSION OPEN</div>
-        </div>
-        <div>
-          <div class="mono" style="font-size:9px;opacity:.5;margin-bottom:5px;letter-spacing:.1em">DISTRIBUTION</div>
-          <div style="height:76px;align-items:flex-end;display:flex;gap:3px">${sparks}</div>
-        </div>
-      </div>
-
-      <div style="background:oklch(0.62 0.22 25);color:#fff;border-radius:28px;padding:26px 30px;
-        display:flex;flex-direction:column;justify-content:space-between;min-height:290px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="mono" style="font-size:11px;letter-spacing:.13em;font-weight:700;opacity:.9">⏵ LIVE / ${ts}</div>
-          <div class="mono" style="font-size:11px;letter-spacing:.13em;font-weight:700;opacity:.9">● ACTIVE</div>
-        </div>
-        <div>
-          <div class="mono" style="font-size:11px;opacity:.9;letter-spacing:.16em;margin-bottom:8px">OPEN POSITIONS</div>
-          <div class="stamp" style="font-size:clamp(52px,6.5vw,92px);color:#0d0d10;line-height:.88">
-            ${String(open.length).padStart(2, '0')}</div>
-          <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-            ${twdBasis > 0 ? `<span class="chip dark"><span class="star">★</span> TW · ${_retStr(twdRet)}</span>` : ''}
-            ${usdBasis > 0 ? `<span class="chip dark"><span class="star">★</span> US · ${_retStr(usdRet)}</span>` : ''}
-          </div>
-        </div>
-        <div class="mono" style="font-size:10px;opacity:.85;letter-spacing:.1em;line-height:1.6">
-          ACCOUNTS: ${accounts.length} &nbsp;·&nbsp; POSITIONS: ${open.length}
-        </div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:14px">
-        ${best ? `<div style="background:var(--cream);border-radius:24px;padding:16px 20px;flex:1;
-            display:flex;flex-direction:column;justify-content:space-between">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="mono" style="font-size:9px;letter-spacing:.13em;opacity:.5">TOP GAINER</div>
-            ${_mkBadge(best.market)}
-          </div>
-          <div>
-            <div class="stamp" style="font-size:30px">${best.ticker}</div>
-            <div class="stamp" style="font-size:18px;color:var(--green);margin-top:2px">${_retStr(best.ret)}</div>
-          </div>
-          <div class="mono" style="font-size:10px;opacity:.55">${best.account}</div>
-        </div>` : ''}
-        ${worst ? `<div style="background:var(--cream);border-radius:24px;padding:16px 20px;flex:1;
-            display:flex;flex-direction:column;justify-content:space-between">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="mono" style="font-size:9px;letter-spacing:.13em;opacity:.5">BOTTOM</div>
-            ${_mkBadge(worst.market)}
-          </div>
-          <div>
-            <div class="stamp" style="font-size:30px">${worst.ticker}</div>
-            <div class="stamp" style="font-size:18px;color:${_retColor(worst.ret)};margin-top:2px">${_retStr(worst.ret)}</div>
-          </div>
-          <div class="mono" style="font-size:10px;opacity:.55">${worst.account}</div>
-        </div>` : ''}
-      </div>
-    </div>`;
-
-  // scrolling ticker
+  // ticker bar
   const tickerItems = open.map(p =>
     `<span style="display:inline-flex;align-items:center;gap:10px">
       <span style="color:oklch(0.62 0.22 25);font-weight:700">●</span>
@@ -290,46 +226,133 @@ function _actOverviewHtml() {
     </span>`
   ).join('');
   const ticker = `<div style="background:var(--ink);color:var(--cream);border-radius:999px;
-      padding:12px 4px;margin-bottom:18px;overflow:hidden">
+      padding:12px 4px;margin-bottom:22px;overflow:hidden">
     <div class="ticker-wrap"><div class="ticker mono" style="font-size:12px;letter-spacing:.08em">
       <div>${tickerItems}</div><div>${tickerItems}</div>
     </div></div>
   </div>`;
 
-  // totals row
-  const totals = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-      gap:14px;margin-bottom:14px">
-    ${twdBasis > 0 ? `<div class="kpi">
-      <div class="kpi-label">台股合計 P&amp;L / TWD</div>
-      <div class="kpi-value" style="color:${_retColor(twdPnl)};font-size:clamp(26px,3.5vw,42px)">
-        ${_fmtPnl(twdPnl, 'TW')}</div>
-      <div class="kpi-sub">${_retStr(twdRet)} · 成本 NT$${Math.round(twdBasis).toLocaleString()}</div>
-    </div>` : ''}
-    ${usdBasis > 0 ? `<div class="kpi">
-      <div class="kpi-label">美股合計 P&amp;L / USD</div>
-      <div class="kpi-value" style="color:${_retColor(usdPnl)};font-size:clamp(26px,3.5vw,42px)">
-        ${_fmtPnl(usdPnl, 'US')}</div>
-      <div class="kpi-sub">${_retStr(usdRet)} · 成本 $${usdBasis.toFixed(0)}</div>
-    </div>` : ''}
-  </div>`;
+  // hero (left: deck, center: aggregate summary, right: best gainer)
+  const now = new Date();
+  const p2  = n => String(n).padStart(2, '0');
+  const ts  = p2(now.getHours()) + ':' + p2(now.getMinutes()) + ':' + p2(now.getSeconds());
+  const withRet = open.filter(p => p.ret !== null);
+  const best = withRet.length ? [...withRet].sort((a, b) => b.ret - a.ret)[0] : null;
 
-  // per-account KPI cards
-  const cards = acctStats.map(a => {
-    const ccy = a.mkt === 'US' ? 'USD' : 'TWD';
-    return `<div class="kpi cream" style="position:relative">
-      <div style="position:absolute;top:16px;right:16px">${_mkBadge(a.mkt)}</div>
-      <div class="kpi-label">${a.acc}</div>
-      <div class="kpi-value" style="color:${_retColor(a.pnl)};font-size:28px">
-        ${_fmtPnl(a.pnl, a.mkt)}</div>
-      <div class="kpi-sub" style="margin-top:6px">
-        <span style="font-size:14px;font-weight:700;color:${_retColor(a.ret)}">${_retStr(a.ret)}</span>
-        &nbsp;·&nbsp;${a.ps.length} 筆<br/>
-        成本 ${a.mkt === 'US' ? '$' + a.basis.toFixed(0) : 'NT$' + Math.round(a.basis).toLocaleString()} ${ccy}
+  const hero = `
+    <div style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(240px,2fr) minmax(180px,1fr);
+      gap:14px;margin-bottom:14px">
+
+      <div style="background:var(--ink);color:var(--cream);border-radius:28px;padding:22px;
+        display:flex;flex-direction:column;justify-content:space-between;min-height:270px">
+        <div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.55">ACTIVE / DECK</div>
+        <div>
+          <div class="display" style="font-size:38px">TRADE.</div>
+          <div class="display" style="font-size:26px;color:oklch(0.62 0.22 25)">DECK</div>
+          <div class="mono" style="font-size:10px;opacity:.5;margin-top:8px;line-height:1.6">
+            ALPHA.SEEKER<br/><span class="blink">⏵</span> SESSION OPEN</div>
+        </div>
+        <div>
+          <div class="mono" style="font-size:9px;opacity:.5;margin-bottom:5px;letter-spacing:.1em">DISTRIBUTION</div>
+          <div style="height:70px;align-items:flex-end;display:flex;gap:3px">${sparks}</div>
+        </div>
+      </div>
+
+      <div style="background:oklch(0.62 0.22 25);color:#fff;border-radius:28px;padding:26px 30px;
+        display:flex;flex-direction:column;justify-content:space-between;min-height:270px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="mono" style="font-size:11px;letter-spacing:.12em;font-weight:700;opacity:.9">⏵ LIVE / ${ts}</div>
+          <div class="mono" style="font-size:11px;font-weight:700;opacity:.9">● ACTIVE</div>
+        </div>
+        <div>
+          <div class="mono" style="font-size:10px;opacity:.85;letter-spacing:.14em;margin-bottom:6px">OPEN POSITIONS</div>
+          <div class="stamp" style="font-size:clamp(48px,6vw,84px);color:#0d0d10;line-height:.9">
+            ${String(open.length).padStart(2, '0')}</div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            ${twAgg.ret !== null ? `<span class="chip dark"><span class="star">★</span> TW · ${_retStr(twAgg.ret)}</span>` : ''}
+            ${usAgg.ret !== null ? `<span class="chip dark"><span class="star">★</span> US · ${_retStr(usAgg.ret)}</span>` : ''}
+          </div>
+        </div>
+        <div class="mono" style="font-size:10px;opacity:.85;letter-spacing:.1em;line-height:1.6">
+          ACCTS: ${groups.length} &nbsp;·&nbsp; POS: ${open.length}
+        </div>
+      </div>
+
+      <div style="background:var(--cream);border-radius:28px;padding:22px;
+        display:flex;flex-direction:column;justify-content:space-between;min-height:270px">
+        <div class="mono" style="font-size:9px;letter-spacing:.13em;opacity:.5">TOP GAINER</div>
+        ${best ? `
+        <div>
+          ${_mkBadge(best.market)}
+          <div class="stamp" style="font-size:36px;margin-top:10px">${best.ticker}</div>
+          <div class="stamp" style="font-size:22px;color:var(--green);margin-top:4px">${_retStr(best.ret)}</div>
+        </div>
+        <div>
+          <div class="mono" style="font-size:10px;opacity:.55;margin-bottom:2px">${best.account}</div>
+          <div class="mono" style="font-size:10px;opacity:.45">P&L ${_fmtPnl(best.pnl, best.market)}</div>
+        </div>` : '<div class="mono" style="opacity:.4;font-size:11px">—</div><div></div>'}
       </div>
     </div>`;
+
+  // Account cards — one per account×market, main metric = 帳戶淨值
+  const cards = groups.map(g => {
+    const ccy    = g.mkt === 'US' ? 'USD' : 'TWD';
+    const isUsd  = g.mkt === 'US';
+    const mvStr  = isUsd
+      ? '$' + g.mv.toFixed(2)
+      : 'NT$' + Math.round(g.mv).toLocaleString('zh-TW');
+    const basisStr = isUsd
+      ? '$' + g.basis.toFixed(0)
+      : 'NT$' + Math.round(g.basis).toLocaleString('zh-TW');
+
+    return `
+      <div style="background:var(--cream);color:var(--ink);border-radius:24px;padding:24px 26px;
+        position:relative;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="mono" style="font-size:10px;letter-spacing:.12em;opacity:.5;margin-bottom:4px">ACCOUNT</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+              font-size:20px;letter-spacing:.02em">${g.acc}</div>
+          </div>
+          ${_mkBadge(g.mkt)}
+        </div>
+
+        <div>
+          <div class="mono" style="font-size:9px;letter-spacing:.12em;opacity:.5;margin-bottom:4px">帳戶淨值 / NET VALUE</div>
+          <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+            font-size:clamp(24px,3vw,36px);line-height:1;letter-spacing:-.01em">
+            ${g.hasMv ? mvStr : basisStr}
+          </div>
+          ${!g.hasMv ? `<div class="mono" style="font-size:10px;opacity:.4;margin-top:3px">現價未填入，顯示成本</div>` : ''}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div class="mono" style="font-size:9px;opacity:.45;margin-bottom:3px;letter-spacing:.1em">報酬率</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+              font-size:22px;color:${_retColor(g.ret)}">${_retStr(g.ret)}</div>
+          </div>
+          <div>
+            <div class="mono" style="font-size:9px;opacity:.45;margin-bottom:3px;letter-spacing:.1em">損益</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+              font-size:18px;color:${_retColor(g.pnl)}">
+              ${g.pnl !== null ? _fmtPnl(g.pnl, g.mkt) : '—'}</div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid rgba(13,13,16,.1);padding-top:12px;
+          display:flex;justify-content:space-between;align-items:center">
+          <div class="mono" style="font-size:10px;opacity:.5">
+            投入成本 ${basisStr} ${ccy}
+          </div>
+          <div class="mono" style="font-size:10px;opacity:.5">${g.ps.length} 筆</div>
+        </div>
+      </div>`;
   }).join('');
 
-  return hero + ticker + totals + `<div class="kpi-row">${cards}</div>`;
+  return hero + ticker
+    + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+        gap:14px">${cards}</div>`;
 }
 
 /* ══════════════ POSITIONS ═════════════════════════════════════ */
