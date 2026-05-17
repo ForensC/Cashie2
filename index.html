@@ -228,8 +228,8 @@ function onRefresh() {
   Object.keys(cache).forEach(k => delete cache[k]);
   showStatus('SYNCING FROM GOOGLE SHEETS...');
   Promise.all([
-    fetchSheet(SHEETS.active),
-    fetchSheet('active_watchlist', SHEET_ID).catch(()=>[]),
+    fetchSheet(SHEETS.active, COLL_SHEET_ID),
+    fetchSheet('active_watchlist', COLL_SHEET_ID).catch(()=>[]),
     fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
     fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
     fetchSheet(SHEETS.coll,    COLL_SHEET_ID),
@@ -257,8 +257,8 @@ function renderTab() {
 (async () => {
   try {
     await Promise.all([
-      fetchSheet(SHEETS.active),
-      fetchSheet('active_watchlist', SHEET_ID).catch(()=>[]),
+      fetchSheet(SHEETS.active, COLL_SHEET_ID),
+      fetchSheet('active_watchlist', COLL_SHEET_ID).catch(()=>[]),
       fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
       fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
       fetchSheet(SHEETS.coll,    COLL_SHEET_ID),

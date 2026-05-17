@@ -13,8 +13,8 @@ function renderActive() {
   el.innerHTML = '<div class="empty"><span class="spin"></span> LOADING...</div>';
 
   Promise.all([
-    fetchSheet(SHEETS.active),
-    fetchSheet('active_watchlist', SHEET_ID).catch(() => []),
+    fetchSheet(SHEETS.active,          COLL_SHEET_ID),
+    fetchSheet('active_watchlist',     COLL_SHEET_ID).catch(() => []),
   ]).then(([posRows, watchRows]) => {
     _actRows  = _actParse(posRows);
     _actWatch = _actParseWatch(watchRows);
