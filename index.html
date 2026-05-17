@@ -175,7 +175,7 @@ table.t tr:hover td{background:rgba(255,255,255,.03)}
 <script>
 const SHEET_ID      = '1IKi0HiVDa8UmPwEgU9zQ5RJ78UwPWZJFtwMkABTJKfs';
 const COLL_SHEET_ID = '1-sPIxLJvK1Y5rB5TXZQss3O_-ZVy7oMvvIAtegDcxbg';
-const SHEETS = { active:'主動投資', cf:'cashflow', cfCats:'cashflow_categories', coll:'collectibles', collSeries:'collectibles_series' };
+const SHEETS = { active:'active_positions', cf:'cashflow', cfCats:'cashflow_categories', coll:'collectibles', collSeries:'collectibles_series' };
 
 const fmt = {
   n:  v => (v==null||isNaN(v)) ? '—' : Math.round(v).toLocaleString('zh-TW'),
@@ -229,7 +229,7 @@ function onRefresh() {
   showStatus('SYNCING FROM GOOGLE SHEETS...');
   Promise.all([
     fetchSheet(SHEETS.active),
-    fetchSheet('watchlist',    SHEET_ID).catch(()=>[]),
+    fetchSheet('active_watchlist', SHEET_ID).catch(()=>[]),
     fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
     fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
     fetchSheet(SHEETS.coll,    COLL_SHEET_ID),
@@ -258,7 +258,7 @@ function renderTab() {
   try {
     await Promise.all([
       fetchSheet(SHEETS.active),
-      fetchSheet('watchlist',    SHEET_ID).catch(()=>[]),
+      fetchSheet('active_watchlist', SHEET_ID).catch(()=>[]),
       fetchSheet(SHEETS.cf,      COLL_SHEET_ID),
       fetchSheet(SHEETS.cfCats,  COLL_SHEET_ID),
       fetchSheet(SHEETS.coll,    COLL_SHEET_ID),

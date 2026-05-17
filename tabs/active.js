@@ -14,7 +14,7 @@ function renderActive() {
 
   Promise.all([
     fetchSheet(SHEETS.active),
-    fetchSheet('watchlist', SHEET_ID).catch(() => []),
+    fetchSheet('active_watchlist', SHEET_ID).catch(() => []),
   ]).then(([posRows, watchRows]) => {
     _actRows  = _actParse(posRows);
     _actWatch = _actParseWatch(watchRows);
@@ -34,15 +34,18 @@ function _actParse(rows) {
     const sl      = parseFloat(r[10]) || 0;
     const tgt     = parseFloat(r[12]) || 0;
     const isSold  = String(r[13] || '').toLowerCase() === 'sold';
+    const hasCur  = cur > 0;
     const exitPx  = isSold ? (parseFloat(r[15]) || 0) : cur;
-    const pnl     = (exitPx - cost) * shares;
     const basis   = cost * shares;
-    const ret     = basis > 0 ? pnl / basis : 0;
+    // P&L and return are null when current_price is blank (holding) or sell_price missing (sold)
+    const canCalc = isSold ? (parseFloat(r[15]) > 0) : hasCur;
+    const pnl     = canCalc ? (exitPx - cost) * shares : null;
+    const ret     = (canCalc && basis > 0) ? pnl / basis : null;
 
     // stop-loss room: fraction of current price below current → stop loss
-    const slRoom  = (sl > 0 && cur > 0) ? (cur - sl) / cur : null;
+    const slRoom  = (sl > 0 && hasCur) ? (cur - sl) / cur : null;
     // target progress 0–1
-    const tgtProg = (tgt > cost && cost > 0)
+    const tgtProg = (tgt > cost && cost > 0 && hasCur)
       ? Math.min(1, Math.max(0, (cur - cost) / (tgt - cost))) : null;
 
     const buyMs   = r[5] ? new Date(String(r[5]).slice(0, 10)).getTime() : null;
@@ -151,9 +154,11 @@ function _fmtPnl(v, mkt) {
     : sign + Math.round(v).toLocaleString('zh-TW');
 }
 function _retStr(v) {
+  if (v === null || v === undefined) return '—';
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%';
 }
 function _retColor(v) {
+  if (v === null || v === undefined) return 'var(--cream)';
   return v > 0 ? 'var(--green)' : v < 0 ? 'var(--signal)' : 'var(--cream)';
 }
 
@@ -167,8 +172,8 @@ function _actOverviewHtml() {
   const acctStats = accounts.map(acc => {
     const ps    = open.filter(p => p.account === acc);
     const basis = ps.reduce((s, p) => s + p.basis, 0);
-    const pnl   = ps.reduce((s, p) => s + p.pnl, 0);
-    const ret   = basis > 0 ? pnl / basis : 0;
+    const pnl   = ps.filter(p => p.pnl !== null).reduce((s, p) => s + p.pnl, 0);
+    const ret   = basis > 0 && ps.some(p => p.ret !== null) ? pnl / basis : null;
     const mkt   = ps[0]?.market || 'TW';
     return { acc, ps, basis, pnl, ret, mkt };
   });
@@ -177,10 +182,10 @@ function _actOverviewHtml() {
   const usd = acctStats.filter(a => a.mkt === 'US');
   const twdBasis = twd.reduce((s, a) => s + a.basis, 0);
   const twdPnl   = twd.reduce((s, a) => s + a.pnl, 0);
-  const twdRet   = twdBasis > 0 ? twdPnl / twdBasis : 0;
+  const twdRet   = twdBasis > 0 && twd.some(a => a.ret !== null) ? twdPnl / twdBasis : null;
   const usdBasis = usd.reduce((s, a) => s + a.basis, 0);
   const usdPnl   = usd.reduce((s, a) => s + a.pnl, 0);
-  const usdRet   = usdBasis > 0 ? usdPnl / usdBasis : 0;
+  const usdRet   = usdBasis > 0 && usd.some(a => a.ret !== null) ? usdPnl / usdBasis : null;
 
   // sparkbars by position size
   const top10  = [...open].sort((a, b) => b.basis - a.basis).slice(0, 10);
@@ -198,8 +203,9 @@ function _actOverviewHtml() {
   const now = new Date();
   const p2  = n => String(n).padStart(2, '0');
   const ts  = p2(now.getHours()) + ':' + p2(now.getMinutes()) + ':' + p2(now.getSeconds());
-  const best  = [...open].sort((a, b) => b.ret - a.ret)[0];
-  const worst = [...open].sort((a, b) => a.ret - b.ret)[0];
+  const withRet = open.filter(p => p.ret !== null);
+  const best  = withRet.length ? [...withRet].sort((a, b) => b.ret - a.ret)[0] : null;
+  const worst = withRet.length > 1 ? [...withRet].sort((a, b) => a.ret - b.ret)[0] : null;
 
   const hero = `
     <div style="display:grid;grid-template-columns:minmax(190px,1fr) minmax(260px,2fr) minmax(190px,1fr);
@@ -253,7 +259,7 @@ function _actOverviewHtml() {
           </div>
           <div class="mono" style="font-size:10px;opacity:.55">${best.account}</div>
         </div>` : ''}
-        ${worst && open.length > 1 ? `<div style="background:var(--cream);border-radius:24px;padding:16px 20px;flex:1;
+        ${worst ? `<div style="background:var(--cream);border-radius:24px;padding:16px 20px;flex:1;
             display:flex;flex-direction:column;justify-content:space-between">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="mono" style="font-size:9px;letter-spacing:.13em;opacity:.5">BOTTOM</div>
