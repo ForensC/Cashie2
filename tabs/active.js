@@ -2,6 +2,7 @@
 
 let _actRows    = [];   // all parsed position rows
 let _actWatch   = [];   // watchlist rows
+let _actSnaps   = [];   // account_snapshots rows
 let _actSubTab  = 'overview';
 let _actAccFilt = 'ALL';
 
@@ -15,9 +16,11 @@ function renderActive() {
   Promise.all([
     fetchSheet(SHEETS.active,          COLL_SHEET_ID),
     fetchSheet('active_watchlist',     COLL_SHEET_ID).catch(() => []),
-  ]).then(([posRows, watchRows]) => {
+    fetchSheet('account_snapshots',    COLL_SHEET_ID).catch(() => []),
+  ]).then(([posRows, watchRows, snapRows]) => {
     _actRows  = _actParse(posRows);
     _actWatch = _actParseWatch(watchRows);
+    _actSnaps = _actParseSnaps(snapRows);
     el.innerHTML = _actShellHtml();
     _actRenderBody();
   }).catch(e => {
@@ -71,6 +74,19 @@ function _actParse(rows) {
       exitPx, pnl, basis, ret, slRoom, tgtProg, holdDays,
     };
   });
+}
+
+function _actParseSnaps(rows) {
+  return rows
+    .filter(r => r[0] && r[1])
+    .map(r => ({
+      date:    String(r[0] || '').slice(0, 10),
+      value:   _n(r[1]),
+      deposit: _n(r[2]),
+      note:    String(r[3] || ''),
+    }))
+    .filter(s => s.value > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function _actParseWatch(rows) {
@@ -165,6 +181,105 @@ function _retStr(v) {
 function _retColor(v) {
   if (v === null || v === undefined) return 'var(--cream)';
   return v > 0 ? 'var(--green)' : v < 0 ? 'var(--signal)' : 'var(--cream)';
+}
+
+/* ─────────────── snapshot return helpers ─────────────────────── */
+function _dietzPeriod(vStart, vEnd, cf) {
+  // Modified Dietz: assume deposit arrives mid-period
+  const denom = vStart + cf / 2;
+  return denom > 0 ? (vEnd - vStart - cf) / denom : null;
+}
+
+function _calcSnapReturns(snaps) {
+  if (snaps.length < 2) return null;
+  const year = new Date().getFullYear();
+
+  // Per-period returns
+  const periods = [];
+  for (let i = 0; i < snaps.length - 1; i++) {
+    const r = _dietzPeriod(snaps[i].value, snaps[i + 1].value, snaps[i + 1].deposit);
+    periods.push({ from: snaps[i].date, to: snaps[i + 1].date, ret: r });
+  }
+
+  // YTD: chain from first snapshot of current year
+  const ytdIdx = snaps.findIndex(s => s.date >= `${year}-01-01`);
+  let ytd = null;
+  if (ytdIdx >= 0 && ytdIdx < snaps.length - 1) {
+    const ytdPeriods = periods.slice(ytdIdx);
+    if (ytdPeriods.every(p => p.ret !== null)) {
+      ytd = ytdPeriods.reduce((acc, p) => (1 + acc) * (1 + p.ret) - 1, 0);
+    }
+  }
+
+  return { ytd, lastPeriod: periods[periods.length - 1], periods };
+}
+
+/* ─────────────── performance banner ──────────────────────────── */
+function _actPerfBanner() {
+  const snaps = _actSnaps;
+
+  if (!snaps.length) {
+    return `<div style="background:var(--ink);color:var(--cream);border-radius:24px;
+        padding:22px 28px;margin-bottom:14px;display:flex;align-items:center;
+        justify-content:space-between;gap:20px;flex-wrap:wrap">
+      <div>
+        <div class="mono" style="font-size:9px;letter-spacing:.15em;opacity:.5;margin-bottom:8px">
+          PERFORMANCE / 帳戶績效</div>
+        <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:18px">
+          尚未記錄快照 · 無法計算報酬率</div>
+        <div class="mono" style="font-size:10px;opacity:.45;margin-top:6px;line-height:1.8">
+          在 Sheets「account_snapshots」填入今日帳戶總值作為基準<br/>
+          下個月底再填一筆 → 報酬率自動計算
+        </div>
+      </div>
+      <div class="mono" style="font-size:10px;opacity:.35;text-align:right;flex-shrink:0">
+        A · date<br/>B · total_value<br/>C · deposit<br/>D · note
+      </div>
+    </div>`;
+  }
+
+  const latest = snaps[snaps.length - 1];
+  const calc   = _calcSnapReturns(snaps);
+  const daysSince = Math.round((Date.now() - new Date(latest.date).getTime()) / 86400000);
+  const needsUpdate = daysSince > 25;
+
+  const ytdStr   = calc?.ytd   != null ? _retStr(calc.ytd)              : snaps.length < 2 ? '需要 ≥2 筆快照' : '—';
+  const ytdColor = calc?.ytd   != null ? _retColor(calc.ytd)            : 'rgba(236,231,220,.45)';
+  const lpStr    = calc?.lastPeriod?.ret != null ? _retStr(calc.lastPeriod.ret) : '—';
+  const lpColor  = calc?.lastPeriod?.ret != null ? _retColor(calc.lastPeriod.ret) : 'rgba(236,231,220,.45)';
+  const lpLabel  = calc?.lastPeriod
+    ? calc.lastPeriod.from.slice(5) + ' → ' + calc.lastPeriod.to.slice(5) : '—';
+
+  const valStr = '$' + latest.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+      gap:14px;margin-bottom:14px">
+    <div style="background:var(--ink);color:var(--cream);border-radius:24px;padding:22px 26px">
+      <div class="mono" style="font-size:9px;letter-spacing:.12em;opacity:.5;margin-bottom:10px">
+        YTD RETURN / 今年報酬率</div>
+      <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+        font-size:clamp(32px,4vw,52px);color:${ytdColor};line-height:1">${ytdStr}</div>
+      <div class="mono" style="font-size:10px;opacity:.4;margin-top:10px">
+        ${new Date().getFullYear()} YTD · ${snaps.length} 個快照</div>
+    </div>
+    <div style="background:var(--ink);color:var(--cream);border-radius:24px;padding:22px 26px">
+      <div class="mono" style="font-size:9px;letter-spacing:.12em;opacity:.5;margin-bottom:10px">
+        LAST PERIOD / 上期報酬率</div>
+      <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+        font-size:clamp(32px,4vw,52px);color:${lpColor};line-height:1">${lpStr}</div>
+      <div class="mono" style="font-size:10px;opacity:.4;margin-top:10px">${lpLabel}</div>
+    </div>
+    <div style="background:var(--cream);color:var(--ink);border-radius:24px;padding:22px 26px">
+      <div class="mono" style="font-size:9px;letter-spacing:.12em;opacity:.5;margin-bottom:10px">
+        LATEST SNAPSHOT / 最近快照</div>
+      <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;
+        font-size:22px;line-height:1">${valStr}</div>
+      <div class="mono" style="font-size:10px;opacity:.5;margin-top:8px">${latest.date}</div>
+      <div class="mono" style="font-size:10px;margin-top:4px;
+        color:${needsUpdate ? 'var(--signal)' : 'var(--green)'}">
+        ${needsUpdate ? '⚠ 建議本月更新' : '● ' + (daysSince === 0 ? '今天記錄' : daysSince + ' 天前')}</div>
+    </div>
+  </div>`;
 }
 
 /* ══════════════ OVERVIEW ══════════════════════════════════════ */
@@ -350,7 +465,7 @@ function _actOverviewHtml() {
       </div>`;
   }).join('');
 
-  return hero + ticker
+  return _actPerfBanner() + hero + ticker
     + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
         gap:14px">${cards}</div>`;
 }
