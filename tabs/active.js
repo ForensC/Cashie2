@@ -26,20 +26,24 @@ function renderActive() {
 }
 
 /* ─────────────── parsers ──────────────────────────────────────── */
+// gviz may format numbers with thousands separator (e.g. "1,000.00")
+const _n = v => parseFloat(String(v || '').replace(/,/g, '')) || 0;
+
 function _actParse(rows) {
   // gviz strips header row into cols[], so rows[0] is already first data row
-  return rows.filter(r => r[3] && !isNaN(Number(r[0]))).map(r => {
-    const shares  = parseFloat(r[6])  || 0;
-    const cost    = parseFloat(r[7])  || 0;
-    const cur     = parseFloat(r[8])  || 0;
-    const sl      = parseFloat(r[10]) || 0;
-    const tgt     = parseFloat(r[12]) || 0;
+  // filter: numeric id + non-empty ticker
+  return rows.filter(r => r[3] && !isNaN(Number(String(r[0] || '').replace(/,/g, '')))).map(r => {
+    const shares  = _n(r[6]);
+    const cost    = _n(r[7]);
+    const cur     = _n(r[8]);
+    const sl      = _n(r[10]);
+    const tgt     = _n(r[12]);
     const isSold  = String(r[13] || '').toLowerCase() === 'sold';
     const hasCur  = cur > 0;
-    const exitPx  = isSold ? (parseFloat(r[15]) || 0) : cur;
+    const exitPx  = isSold ? _n(r[15]) : cur;
     const basis   = cost * shares;
     // P&L and return are null when current_price is blank (holding) or sell_price missing (sold)
-    const canCalc = isSold ? (parseFloat(r[15]) > 0) : hasCur;
+    const canCalc = isSold ? (_n(r[15]) > 0) : hasCur;
     const pnl     = canCalc ? (exitPx - cost) * shares : null;
     const ret     = (canCalc && basis > 0) ? pnl / basis : null;
 
